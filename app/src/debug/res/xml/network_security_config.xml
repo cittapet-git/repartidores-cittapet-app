@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug only: allow cleartext to local/dev backends so http dev builds work. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.2.49</domain>
+        <domain includeSubdomains="true">192.168.2.15</domain>
+        <domain includeSubdomains="true">192.168.1.15</domain>
+        <domain includeSubdomains="true">192.168.1.7</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">repartidores.cittapet.app</domain>
+    </domain-config>
+</network-security-config>
