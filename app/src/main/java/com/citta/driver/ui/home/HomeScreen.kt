@@ -120,9 +120,13 @@ fun HomeScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Bumped whenever a grant may have changed (a request result, or a return to the
+    // foreground) to re-run the permission -> AppStatus recompute further down.
+    var permissionReevalTick by remember { mutableStateOf(0) }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { /* best-effort; nothing blocks on notifications in Delivery 1 */ }
+    ) { permissionReevalTick++ }
 
     var showNotificationRationale by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -152,6 +156,7 @@ fun HomeScreen(
                 Toast.makeText(context, "Se necesitan permisos de ubicación para el tracking", Toast.LENGTH_LONG).show()
             }
         }
+        permissionReevalTick++
     }
 
     LaunchedEffect(Unit) {
@@ -193,7 +198,6 @@ fun HomeScreen(
     // show a rationale first, then (API 29) a direct request or (API 30+) an app-settings deep link.
     var backgroundRationaleAcknowledged by rememberSaveable { mutableStateOf(false) }
     var showBackgroundRationale by remember { mutableStateOf(false) }
-    var permissionReevalTick by remember { mutableStateOf(0) }
     val backgroundLocationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { permissionReevalTick++ }
@@ -251,7 +255,12 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> viewModel.startPolling()
+                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
+                    viewModel.startPolling()
+                    // Re-check grants on every foreground return so granting a permission from
+                    // the OS settings screen clears a blocking AppStatus.
+                    permissionReevalTick++
+                }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> viewModel.stopPolling()
                 else -> Unit
             }

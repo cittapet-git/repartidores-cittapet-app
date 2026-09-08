@@ -1,5 +1,12 @@
 package com.citta.driver.ui.navigation
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -15,10 +22,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -28,10 +41,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.citta.driver.domain.observability.AppStatus
+import com.citta.driver.domain.observability.AppStatusMapper
 import com.citta.driver.ui.ajustes.AjustesScreen
 import com.citta.driver.ui.components.CittaBottomNav
 import com.citta.driver.ui.historial.HistorialScreen
 import com.citta.driver.ui.home.HomeScreen
+import com.citta.driver.ui.home.hasLocationPermission
 import com.citta.driver.ui.metrics.MetricsScreen
 import com.citta.driver.ui.notificaciones.NotificacionesScreen
 import com.citta.driver.ui.orderdetail.OrderDetailScreen
@@ -173,15 +188,44 @@ fun DriverNavHost(
                 AppStatus.valueOf(entry.arguments?.getString(DriverRoute.STATUS_ARG).orEmpty())
             }.getOrDefault(AppStatus.Healthy)
             val isSession = status == AppStatus.SessionExpired
+            val context = LocalContext.current
+            val lifecycleOwner = LocalLifecycleOwner.current
+
+            // Permission gaps: when the user comes back from the OS settings screen with the
+            // grant, re-derive the status — unwind to HOME once nothing is missing, or move on
+            // to the next missing permission. Without this the block could never clear.
+            if (!isSession) {
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            when (val next = currentPermissionStatus(context)) {
+                                null -> navController.popBackStack(DriverRoute.HOME, inclusive = false)
+                                status -> Unit
+                                else -> navController.navigate(DriverRoute.status(next)) {
+                                    popUpTo(DriverRoute.STATUS_PATTERN) { inclusive = true }
+                                }
+                            }
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+            }
+
             AppStatusScreen(
                 status = status,
                 actionLabel = if (isSession) "Volver a iniciar sesión" else "Abrir ajustes",
                 onAction = {
-                    // SessionExpired: Slice 1's ForcedLogoutAuthenticator already clears the
-                    // session, so DriverAppRoot swaps to the login screen; just unwind here.
-                    // Permission gaps: pop back so the re-check on resume can clear the block.
-                    if (isSession) onLogout()
-                    navController.popBackStack(DriverRoute.HOME, inclusive = false)
+                    if (isSession) {
+                        // Slice 1's ForcedLogoutAuthenticator already cleared the session, so
+                        // DriverAppRoot swaps to the login screen; just unwind here.
+                        onLogout()
+                        navController.popBackStack(DriverRoute.HOME, inclusive = false)
+                    } else {
+                        // Open the OS settings page for the missing grant. Do not pop here: the
+                        // ON_RESUME observer above clears this screen once the grant lands.
+                        openPermissionSettings(context, status)
+                    }
                 },
             )
         }
@@ -203,4 +247,29 @@ fun DriverNavHost(
             )
         }
     }
+}
+
+/** The [AppStatus] for the currently-missing runtime permission, or `null` when none is missing. */
+private fun currentPermissionStatus(context: Context): AppStatus? {
+    val notificationsGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+        PackageManager.PERMISSION_GRANTED
+    return AppStatusMapper.fromPermissions(
+        locationGranted = hasLocationPermission(context),
+        notificationsGranted = notificationsGranted,
+    )
+}
+
+/** Send the user straight to the OS settings page for the permission behind [status]. */
+private fun openPermissionSettings(context: Context, status: AppStatus) {
+    val intent = if (status == AppStatus.NotificationsPermissionDenied) {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    } else {
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", context.packageName, null),
+        )
+    }
+    context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
