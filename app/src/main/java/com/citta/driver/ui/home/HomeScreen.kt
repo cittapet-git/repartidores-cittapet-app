@@ -124,13 +124,23 @@ fun HomeScreen(
     // foreground) to re-run the permission -> AppStatus recompute further down.
     var permissionReevalTick by remember { mutableStateOf(0) }
 
+    // Fresh-install permission bootstrap. The full-screen blocking AppStatus is only for a
+    // permission the user has actually refused — not one we have not asked for yet — so the
+    // in-place request / rationale on Home is never yanked away before the user can answer.
+    var locationAsked by rememberSaveable { mutableStateOf(false) }
+    var notificationsAsked by rememberSaveable { mutableStateOf(false) }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { permissionReevalTick++ }
+    ) {
+        notificationsAsked = true
+        permissionReevalTick++
+    }
 
     var showNotificationRationale by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+        if (!notificationsAsked &&
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -144,6 +154,7 @@ fun HomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
+        locationAsked = true
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         when {
@@ -176,6 +187,16 @@ fun HomeScreen(
             // boot / re-arm does not restart tracking after the driver went off shift.
             context.startService(
                 Intent(context, TrackingService::class.java).setAction(TrackingService.ACTION_STOP),
+            )
+        }
+    }
+
+    // Ask for foreground location on first run too (not only when a shift starts), so a
+    // fresh install can reach a granted state without toggling a shift first.
+    LaunchedEffect(Unit) {
+        if (!locationAsked && !hasLocationPermission(context)) {
+            locationPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
             )
         }
     }
@@ -245,9 +266,17 @@ fun HomeScreen(
         )
     }
 
-    LaunchedEffect(viewModel.appStatus) {
+    LaunchedEffect(viewModel.appStatus, locationAsked, notificationsAsked) {
         val status = viewModel.appStatus
-        if (status.blocking) onBlockingStatus(status)
+        if (!status.blocking) return@LaunchedEffect
+        // A missing permission escalates to the full-screen block only once we have asked
+        // for it and been refused; until then the in-place request / rationale owns it.
+        val readyToBlock = when (status) {
+            AppStatus.LocationPermissionDenied -> locationAsked
+            AppStatus.NotificationsPermissionDenied -> notificationsAsked
+            else -> true
+        }
+        if (readyToBlock) onBlockingStatus(status)
     }
 
     var dismissedStatus by remember { mutableStateOf<AppStatus?>(null) }
