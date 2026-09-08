@@ -13,6 +13,8 @@ fun UserDto.toDriverUser(): DriverUser = DriverUser(
     rol = (rol ?: role).orEmpty(),
     photoUrl = foto_url.normalizeDriverPhotoUrl(),
     mustChangePassword = must_change_password,
+    memberSince = creado_en?.trim()?.takeIf { it.isNotEmpty() },
+    dispatchedOrders = total_pedidos_despachados,
 )
 
 private fun String?.normalizeDriverPhotoUrl(): String? {
