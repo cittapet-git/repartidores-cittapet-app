@@ -37,6 +37,8 @@ data class UserDto(
     val tipo: String? = null,
     val foto_url: String? = null,
     val must_change_password: Boolean = false,
+    val creado_en: String? = null,
+    val total_pedidos_despachados: Int? = null,
 )
 data class AvailabilityRequest(val availability_state: String)
 
