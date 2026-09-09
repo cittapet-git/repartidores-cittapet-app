@@ -1,6 +1,9 @@
 package com.citta.driver.ui.ajustes
 
 import androidx.compose.animation.AnimatedVisibility
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -106,6 +109,10 @@ fun AjustesScreen(
                 InfoRow("Nombre", profile?.name ?: "—")
                 Divider(color = CittaSurface, thickness = 1.dp)
                 InfoRow("Correo", profile?.email?.takeIf { it.isNotBlank() } ?: "—")
+                Divider(color = CittaSurface, thickness = 1.dp)
+                InfoRow("Pedidos despachados", profile?.dispatchedOrders?.toString() ?: "—")
+                Divider(color = CittaSurface, thickness = 1.dp)
+                InfoRow("Miembro desde", profile?.memberSince?.let(::formatMemberSince) ?: "—")
             }
 
             Spacer(Modifier.height(28.dp))
@@ -322,6 +329,13 @@ private fun ClearCacheCard(
         )
     }
 }
+
+private val MEMBER_SINCE_OUTPUT = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", Locale("es"))
+
+/** Backend `creado_en` ("yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd") -> "15 de enero de 2026". Falls back to the raw value. */
+private fun formatMemberSince(raw: String): String = runCatching {
+    LocalDate.parse(raw.trim().substringBefore(' ')).format(MEMBER_SINCE_OUTPUT)
+}.getOrDefault(raw)
 
 @Composable
 private fun SectionLabel(text: String) {
