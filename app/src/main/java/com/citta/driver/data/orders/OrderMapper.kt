@@ -35,8 +35,8 @@ fun PedidoDto.toActiveOrder(): ActiveOrder = ActiveOrder(
  * Order line items, preferring the backend `items[]` array (dashboard / manual orders) and
  * falling back to `metadata.woocommerce.items[]` for legacy WooCommerce-imported orders.
  */
-private fun mapLineItems(items: List<OrderItemDto>, metadata: JsonElement?): List<OrderLineItem> {
-    if (items.isNotEmpty()) {
+private fun mapLineItems(items: List<OrderItemDto>?, metadata: JsonElement?): List<OrderLineItem> {
+    if (!items.isNullOrEmpty()) {
         return items.map { dto ->
             OrderLineItem(
                 quantity = dto.cantidad,

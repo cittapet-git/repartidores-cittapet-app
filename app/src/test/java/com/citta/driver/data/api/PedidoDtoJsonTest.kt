@@ -51,4 +51,29 @@ class PedidoDtoJsonTest {
         assertEquals(1, nullMeta.data.single().id)
         assertEquals(2, noMeta.data.single().id)
     }
+
+    /**
+     * Gson allocates [PedidoDto] without the constructor, so an omitted `items` key leaves the
+     * field `null` (not `emptyList()`). `toActiveOrder()` must tolerate that and still map an
+     * order whose `items` array IS present.
+     */
+    @Test
+    fun `items array is optional and maps through toActiveOrder`() {
+        val without: ApiResponse<List<PedidoDto>> = gson.fromJson(
+            """{"data":[{"id":1,"total_amount":5.0,"assigned_driver_user_ids":[7]}]}""",
+            listType,
+        )
+        assertEquals(emptyList<Any>(), without.data.single().toActiveOrder().items)
+
+        val with: ApiResponse<List<PedidoDto>> = gson.fromJson(
+            """{"data":[{"id":2,"total_amount":5.0,"assigned_driver_user_ids":[7],"items":[
+                {"sku":"AB-1","descripcion":"Shampoo","cantidad":2,"peso_unitario_kg":0.3}
+            ]}]}""",
+            listType,
+        )
+        val items = with.data.single().toActiveOrder().items
+        assertEquals(1, items.size)
+        assertEquals("AB-1", items.single().sku)
+        assertEquals(2, items.single().quantity)
+    }
 }
