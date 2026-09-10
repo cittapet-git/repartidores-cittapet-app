@@ -1,6 +1,7 @@
 package com.citta.driver.domain.driver
 
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 
 /**
@@ -51,4 +52,12 @@ interface DriverRepository {
 
     /** `GET /pedidos/{id}` order detail, projected to [ActiveOrder]. */
     suspend fun getOrderDetail(orderId: Int): ActiveOrder
+
+    /**
+     * Resolves a Google Maps [url] to coordinates via `GET /api/v1/geo/resolve` (handles
+     * shortened / place links the on-device parser can't). Returns null when the backend
+     * can't resolve it (HTTP 422) or on any transport error — the caller degrades gracefully.
+     * Defaults to null so callers that never need geo resolution (and their fakes) can ignore it.
+     */
+    suspend fun resolveMapsLinkCoordinates(url: String): GeoPoint? = null
 }

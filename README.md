@@ -38,13 +38,20 @@ Este archivo **NO** está versionado. Para obtenerlo:
 
 ### Maps API Key
 
-Crear `local.properties` en la raíz del proyecto:
+Requerida para el mapa nativo de la pantalla de detalle de pedido. **Nunca** se versiona.
 
-```properties
-MAPS_API_KEY=YOUR_KEY_HERE
-```
+- Local: agregar a `local.properties` (gitignored) en la raíz del proyecto:
 
-O usar `-PMAPS_API_KEY=YOUR_KEY` al compilar.
+  ```properties
+  MAPS_API_KEY=YOUR_KEY_HERE
+  ```
+
+  o pasar `-PMAPS_API_KEY=YOUR_KEY` al compilar. `build.gradle.kts` la inyecta en el
+  placeholder `com.google.android.geo.API_KEY` del manifest; si falta, el mapa sale en blanco.
+- CI: viene del secret de repositorio `MAPS_API_KEY` (ver `.github/workflows/android-ci.yml`).
+- La clave viaja dentro del APK, así que su protección real es en Google Cloud Console:
+  restricción de aplicación al paquete `com.citta.driver` + SHA-1 (debug y release),
+  restricción de API a "Maps SDK for Android", y tope de cuota.
 
 ## Build
 

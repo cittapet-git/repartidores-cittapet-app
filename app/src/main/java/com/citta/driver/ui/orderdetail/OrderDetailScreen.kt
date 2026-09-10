@@ -62,10 +62,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.OrderLineItem
 import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.ui.home.IncidentFormDialog
-import com.citta.driver.ui.home.extractLatLngFromMapsLink
 import com.citta.driver.ui.home.components.StatusPill
 import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaGreen
@@ -182,7 +182,7 @@ fun OrderDetailScreen(
                 },
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    MapBackground(order = order, onOpenMapsLink = openMaps)
+                    MapBackground(destination = viewModel.destination, onOpenMapsLink = openMaps)
                     BackButton(
                         onBack = onBack,
                         modifier = Modifier
@@ -214,15 +214,13 @@ fun OrderDetailScreen(
 // ── Map background ───────────────────────────────────────────────────────────
 
 @Composable
-private fun MapBackground(order: ActiveOrder, onOpenMapsLink: () -> Unit) {
-    val destination = remember(order.mapsLink) {
-        order.mapsLink?.let(::extractLatLngFromMapsLink)?.let { (lat, lng) -> LatLng(lat, lng) }
-    }
+private fun MapBackground(destination: GeoPoint?, onOpenMapsLink: () -> Unit) {
+    val target = remember(destination) { destination?.let { LatLng(it.lat, it.lng) } }
 
     Box(Modifier.fillMaxSize().background(CittaPanelSurface)) {
-        if (destination != null) {
+        if (target != null) {
             DestinationMap(
-                destination = destination,
+                destination = target,
                 onMarkerClick = onOpenMapsLink,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -581,7 +579,10 @@ private fun ProductCard(item: OrderLineItem, modifier: Modifier = Modifier) {
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = "Artículo #${item.productId}",
+                text = item.descripcion
+                    ?: item.sku?.let { "SKU $it" }
+                    ?: item.productId?.let { "Artículo #$it" }
+                    ?: "Artículo",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CittaTextPrimary,
                 maxLines = 1,

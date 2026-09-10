@@ -15,7 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.citta.driver.ui.home.extractLatLngFromMapsLink
+import com.citta.driver.domain.orders.parseMapsLinkLatLng
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
 import com.citta.driver.ui.theme.CittaSurface
@@ -44,7 +44,7 @@ fun OrderLocationMap(
     onMarkerClick: (() -> Unit)? = null,
 ) {
     val destination = remember(mapsLink) {
-        mapsLink?.let(::extractLatLngFromMapsLink)?.let { (lat, lng) -> LatLng(lat, lng) }
+        mapsLink?.let(::parseMapsLinkLatLng)?.let { (lat, lng) -> LatLng(lat, lng) }
     }
 
     Box(modifier.background(CittaPanelSurface)) {

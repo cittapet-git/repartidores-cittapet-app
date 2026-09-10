@@ -1,5 +1,6 @@
 package com.citta.driver.data.orders
 
+import com.citta.driver.data.api.OrderItemDto
 import com.citta.driver.data.api.PedidoDto
 import com.citta.driver.domain.orders.OrderLineItem
 import com.citta.driver.domain.orders.OrderStatus
@@ -19,9 +20,11 @@ class OrderMapperTest {
         pagoDoble: Int = 0,
         requiereHoja: Int = 0,
         metadata: JsonElement? = null,
+        items: List<OrderItemDto> = emptyList(),
     ) = PedidoDto(
         id = id,
         source_ref = "CIT-$id",
+        items = items,
         item_count = 3,
         package_weight_kg = 2.5,
         maps_link = "https://maps.google.com/?q=10.5,-66.9",
@@ -98,6 +101,48 @@ class OrderMapperTest {
         val flagged = pedido(pagoDoble = 1, requiereHoja = 1).toActiveOrder()
         assertTrue(flagged.pagoDoble)
         assertTrue(flagged.requiresSignedSheet)
+    }
+
+    @Test
+    fun `reads product lines from the backend items array`() {
+        val order = pedido(
+            items = listOf(
+                OrderItemDto(
+                    sku = "SHMP-01",
+                    descripcion = "Shampoo antipulgas 250ml",
+                    imagen_url = "https://cdn.citta/shmp01.png",
+                    cantidad = 2,
+                    peso_unitario_kg = 0.3,
+                    peso_subtotal_kg = 0.6,
+                ),
+                OrderItemDto(sku = "TOY-09", descripcion = null, cantidad = 1),
+            ),
+        ).toActiveOrder()
+
+        assertEquals(
+            listOf(
+                OrderLineItem(
+                    quantity = 2,
+                    sku = "SHMP-01",
+                    descripcion = "Shampoo antipulgas 250ml",
+                    imageUrl = "https://cdn.citta/shmp01.png",
+                    unitWeightKg = 0.3,
+                    subtotalWeightKg = 0.6,
+                ),
+                OrderLineItem(quantity = 1, sku = "TOY-09"),
+            ),
+            order.items,
+        )
+    }
+
+    @Test
+    fun `prefers the backend items array over legacy metadata when both are present`() {
+        val order = pedido(
+            items = listOf(OrderItemDto(sku = "NEW-1", cantidad = 1)),
+            metadata = json("""{"woocommerce":{"items":[{"product_id":900,"quantity":9}]}}"""),
+        ).toActiveOrder()
+
+        assertEquals(listOf(OrderLineItem(quantity = 1, sku = "NEW-1")), order.items)
     }
 
     @Test

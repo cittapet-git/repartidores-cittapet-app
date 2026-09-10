@@ -4,8 +4,10 @@ import com.citta.driver.data.api.ApiResponse
 import com.citta.driver.data.api.CittaApi
 import com.citta.driver.data.api.IncidentDto
 import com.citta.driver.data.api.IncidentRequest
+import com.citta.driver.data.api.GeoPointDto
 import com.citta.driver.data.api.NotImplementedApi
 import com.citta.driver.data.api.PedidoDto
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.orders.OrderStatus
 import kotlinx.coroutines.test.runTest
@@ -39,8 +41,17 @@ class DefaultDriverRepositoryOrdersTest {
         var marcarEntregadoResult: PedidoDto? = null
         val incidentCalls = mutableListOf<Pair<Int, IncidentRequest>>()
         var incidentError: Throwable? = null
+        val resolveGeoCalls = mutableListOf<String>()
+        var resolveGeoResult: GeoPointDto? = null
+        var resolveGeoError: Throwable? = null
 
         override suspend fun getActiveOrders(): ApiResponse<List<PedidoDto>> = ApiResponse(activeOrders)
+
+        override suspend fun resolveGeo(url: String): ApiResponse<GeoPointDto> {
+            resolveGeoCalls += url
+            resolveGeoError?.let { throw it }
+            return ApiResponse(resolveGeoResult!!)
+        }
 
         override suspend fun iniciarViaje(orderId: Int): ApiResponse<PedidoDto> =
             ApiResponse(iniciarViajeResult!!)
@@ -148,5 +159,24 @@ class DefaultDriverRepositoryOrdersTest {
 
         assertTrue(thrown is HttpException)
         assertEquals(422, (thrown as HttpException).code())
+    }
+
+    @Test
+    fun `resolveMapsLinkCoordinates returns the backend point`() = runTest {
+        val api = FakeApi().apply { resolveGeoResult = GeoPointDto(lat = 10.5, lng = -66.9) }
+
+        val point = repo(api).resolveMapsLinkCoordinates("https://maps.app.goo.gl/abc")
+
+        assertEquals(GeoPoint(10.5, -66.9), point)
+        assertEquals(listOf("https://maps.app.goo.gl/abc"), api.resolveGeoCalls)
+    }
+
+    @Test
+    fun `resolveMapsLinkCoordinates returns null when the backend cannot resolve the link`() = runTest {
+        val body = """{"error":{"message":"Could not extract coordinates from the provided URL."}}"""
+            .toResponseBody("application/json".toMediaTypeOrNull())
+        val api = FakeApi().apply { resolveGeoError = HttpException(Response.error<Any>(422, body)) }
+
+        assertNull(repo(api).resolveMapsLinkCoordinates("https://maps.google.com/place/nowhere"))
     }
 }

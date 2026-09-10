@@ -7,7 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.citta.driver.domain.driver.DriverRepository
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
+import com.citta.driver.domain.orders.parseMapsLinkLatLng
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -19,6 +21,15 @@ class OrderDetailViewModel @Inject constructor(
 
     var order by mutableStateOf<ActiveOrder?>(null)
         private set
+
+    /**
+     * Delivery-location pin for the detail map. Filled from the maps link on-device when it
+     * carries coordinates, otherwise resolved through the backend. Null while unknown or
+     * unresolvable — the screen shows its placeholder then.
+     */
+    var destination by mutableStateOf<GeoPoint?>(null)
+        private set
+
     var isLoading by mutableStateOf(true)
         private set
     var error by mutableStateOf<String?>(null)
@@ -46,13 +57,29 @@ class OrderDetailViewModel @Inject constructor(
             isLoading = true
             error = null
             order = null
+            destination = null
             runCatching { driverRepository.getOrderDetail(orderId) }
                 .onSuccess { order = it }
                 .onFailure {
                     error = "Reintenta en unos segundos."
                 }
             isLoading = false
+            resolveDestination()
         }
+    }
+
+    /**
+     * Best-effort delivery-location resolution: try the on-device parser first (no network),
+     * fall back to the backend for shortened / place links. Never blocks [order] rendering and
+     * never surfaces an error — the map just stays on its placeholder.
+     */
+    private suspend fun resolveDestination() {
+        val link = order?.mapsLink?.takeIf { it.isNotBlank() } ?: return
+        parseMapsLinkLatLng(link)?.let { (lat, lng) ->
+            destination = GeoPoint(lat, lng)
+            return
+        }
+        destination = runCatching { driverRepository.resolveMapsLinkCoordinates(link) }.getOrNull()
     }
 
     /** Move the order from `assigned` to `in_transit` (recogido en tienda, en camino). */

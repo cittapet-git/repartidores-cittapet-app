@@ -25,5 +25,6 @@ open class NotImplementedApi : CittaApi {
     override suspend fun reportIncident(orderId: Int, request: IncidentRequest): ApiResponse<IncidentDto> = nope("reportIncident")
     override suspend fun getPedidoDetail(orderId: Int): PedidoDetailResponse = nope("getPedidoDetail")
     override suspend fun getPedidoEvents(orderId: Int): ApiResponse<List<OrderEventDto>> = nope("getPedidoEvents")
+    override suspend fun resolveGeo(url: String): ApiResponse<GeoPointDto> = nope("resolveGeo")
     override suspend fun getTrackingSnapshot(orderId: Int): ApiResponse<TrackingSnapshotDto> = nope("getTrackingSnapshot")
 }

@@ -1,5 +1,6 @@
 package com.citta.driver.data.orders
 
+import com.citta.driver.data.api.OrderItemDto
 import com.citta.driver.data.api.PedidoDto
 import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.OrderLineItem
@@ -25,18 +26,38 @@ fun PedidoDto.toActiveOrder(): ActiveOrder = ActiveOrder(
     pagoDoble = pago_doble == 1,
     requiresSignedSheet = requiere_hoja_firmada == 1,
     assignedDriverUserIds = assigned_driver_user_ids,
-    items = parseLineItems(metadata),
+    items = mapLineItems(items, metadata),
     createdAt = created_at,
     updatedAt = updated_at,
 )
 
 /**
+ * Order line items, preferring the backend `items[]` array (dashboard / manual orders) and
+ * falling back to `metadata.woocommerce.items[]` for legacy WooCommerce-imported orders.
+ */
+private fun mapLineItems(items: List<OrderItemDto>, metadata: JsonElement?): List<OrderLineItem> {
+    if (items.isNotEmpty()) {
+        return items.map { dto ->
+            OrderLineItem(
+                quantity = dto.cantidad,
+                sku = dto.sku?.takeIf { it.isNotBlank() },
+                descripcion = dto.descripcion?.takeIf { it.isNotBlank() },
+                imageUrl = dto.imagen_url?.takeIf { it.isNotBlank() },
+                unitWeightKg = dto.peso_unitario_kg,
+                subtotalWeightKg = dto.peso_subtotal_kg,
+            )
+        }
+    }
+    return parseLegacyWooLineItems(metadata)
+}
+
+/**
  * Pulls product lines out of `metadata.woocommerce.items[]` for WooCommerce-imported orders.
  * The blob is opaque and optional (manual orders send `null`, some send arrays/primitives), so
  * every hop is guarded and any failure yields an empty list rather than throwing.
- * Item shape today: `{ product_id, quantity, unit_weight_kg, line_weight_kg }` — no name.
+ * Legacy item shape: `{ product_id, quantity, unit_weight_kg, line_weight_kg }` — no name.
  */
-private fun parseLineItems(metadata: JsonElement?): List<OrderLineItem> = runCatching {
+private fun parseLegacyWooLineItems(metadata: JsonElement?): List<OrderLineItem> = runCatching {
     if (metadata?.isJsonObject != true) return emptyList()
     val woo = metadata.asJsonObject.get("woocommerce")?.takeIf { it.isJsonObject }?.asJsonObject
         ?: return emptyList()
@@ -47,9 +68,9 @@ private fun parseLineItems(metadata: JsonElement?): List<OrderLineItem> = runCat
         val productId = obj.get("product_id")?.asIntOrNull() ?: return@mapNotNull null
         val quantity = obj.get("quantity")?.asIntOrNull() ?: 0
         OrderLineItem(
-            productId = productId,
             quantity = quantity,
             unitWeightKg = obj.get("unit_weight_kg")?.asDoubleOrNull(),
+            productId = productId,
         )
     }
 }.getOrDefault(emptyList())

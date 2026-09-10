@@ -683,20 +683,4 @@ internal fun hasLocationPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
 
-/**
- * Best-effort coordinate extraction from a Google Maps link:
- * `@lat,lng`, `?q=lat,lng` / `&query=lat,lng`, or `?ll=lat,lng`.
- */
-fun extractLatLngFromMapsLink(link: String): Pair<Double, Double>? {
-    val patterns = listOf(
-        Regex("""@(-?\d+\.\d+),(-?\d+\.\d+)"""),
-        Regex("""[?&](?:q|query)=(-?\d+\.\d+),(-?\d+\.\d+)"""),
-        Regex("""[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)"""),
-    )
-    for (pattern in patterns) {
-        pattern.find(link)?.let { return it.groupValues[1].toDouble() to it.groupValues[2].toDouble() }
-    }
-    return null
-}
-
 private const val LEADING_ITEMS_BEFORE_ORDERS = 2
