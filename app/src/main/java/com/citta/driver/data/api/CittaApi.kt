@@ -114,8 +114,12 @@ data class OrderItemDto(
 data class PedidoDto(
     val id: Int,
     val source_ref: String? = null,
-    /** Product lines for dashboard / manual orders; empty for legacy WooCommerce orders. */
-    val items: List<OrderItemDto> = emptyList(),
+    /**
+     * Product lines for dashboard / manual orders; absent for legacy WooCommerce orders.
+     * Nullable on purpose: Gson allocates without the constructor, so an omitted `items`
+     * key leaves this `null` rather than `emptyList()` (same reason [metadata] is nullable).
+     */
+    val items: List<OrderItemDto>? = null,
     /** WooCommerce order id when the order came from WooCommerce; null for manual orders. */
     val wc_order_id: Int? = null,
     val source_type: String? = null,
