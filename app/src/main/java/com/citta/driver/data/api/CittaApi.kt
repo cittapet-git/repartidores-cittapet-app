@@ -37,6 +37,8 @@ data class UserDto(
     val tipo: String? = null,
     val foto_url: String? = null,
     val must_change_password: Boolean = false,
+    val creado_en: String? = null,
+    val total_pedidos_despachados: Int? = null,
 )
 data class AvailabilityRequest(val availability_state: String)
 
@@ -94,10 +96,30 @@ data class MetricsDto(
 // Source of truth: repartidores-cittapet OrderMapper::map + IniciarViajeUseCase +
 // MarcarEntregadoUseCase + ReportarIncidenteUseCase.
 
+/**
+ * One product line from the backend `OrderShape.items[]` array (source: `trk_pedidos.items_json`,
+ * emitted by `OrderMapper::mapItems`). Dashboard / manual orders carry these; legacy
+ * WooCommerce orders instead carry lines inside [PedidoDto.metadata].
+ */
+data class OrderItemDto(
+    val sku: String? = null,
+    val descripcion: String? = null,
+    val imagen_url: String? = null,
+    val cantidad: Int = 0,
+    val peso_unitario_kg: Double? = null,
+    val peso_subtotal_kg: Double? = null,
+)
+
 /** Backend `OrderShape` from `OrderMapper::map`, wrapped in `data` by every driver order endpoint. */
 data class PedidoDto(
     val id: Int,
     val source_ref: String? = null,
+    /**
+     * Product lines for dashboard / manual orders; absent for legacy WooCommerce orders.
+     * Nullable on purpose: Gson allocates without the constructor, so an omitted `items`
+     * key leaves this `null` rather than `emptyList()` (same reason [metadata] is nullable).
+     */
+    val items: List<OrderItemDto>? = null,
     /** WooCommerce order id when the order came from WooCommerce; null for manual orders. */
     val wc_order_id: Int? = null,
     val source_type: String? = null,
@@ -153,6 +175,9 @@ data class PedidoDetailResponse(
     val data: PedidoDto,
     val events: List<OrderEventDto> = emptyList(),
 )
+
+/** `GET /api/v1/geo/resolve` payload (wrapped in `data`): a maps link resolved to coordinates. */
+data class GeoPointDto(val lat: Double, val lng: Double)
 
 interface CittaApi {
     @POST("/api/v1/auth/login")
@@ -215,6 +240,10 @@ interface CittaApi {
 
     @GET("/api/v1/pedidos/{id}/eventos")
     suspend fun getPedidoEvents(@Path("id") orderId: Int): ApiResponse<List<OrderEventDto>>
+
+    /** `GET /api/v1/geo/resolve` — resolves a Google Maps link to `{lat,lng}`; HTTP 422 when unresolvable. */
+    @GET("/api/v1/geo/resolve")
+    suspend fun resolveGeo(@Query("url") url: String): ApiResponse<GeoPointDto>
 
     @GET("/api/v1/orders/{id}/tracking")
     suspend fun getTrackingSnapshot(@Path("id") orderId: Int): ApiResponse<TrackingSnapshotDto>

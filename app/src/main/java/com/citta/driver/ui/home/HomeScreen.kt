@@ -120,13 +120,27 @@ fun HomeScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Bumped whenever a grant may have changed (a request result, or a return to the
+    // foreground) to re-run the permission -> AppStatus recompute further down.
+    var permissionReevalTick by remember { mutableStateOf(0) }
+
+    // Fresh-install permission bootstrap. The full-screen blocking AppStatus is only for a
+    // permission the user has actually refused — not one we have not asked for yet — so the
+    // in-place request / rationale on Home is never yanked away before the user can answer.
+    var locationAsked by rememberSaveable { mutableStateOf(false) }
+    var notificationsAsked by rememberSaveable { mutableStateOf(false) }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { /* best-effort; nothing blocks on notifications in Delivery 1 */ }
+    ) {
+        notificationsAsked = true
+        permissionReevalTick++
+    }
 
     var showNotificationRationale by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+        if (!notificationsAsked &&
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -140,6 +154,7 @@ fun HomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { permissions ->
+        locationAsked = true
         val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         when {
@@ -152,6 +167,7 @@ fun HomeScreen(
                 Toast.makeText(context, "Se necesitan permisos de ubicación para el tracking", Toast.LENGTH_LONG).show()
             }
         }
+        permissionReevalTick++
     }
 
     LaunchedEffect(Unit) {
@@ -175,6 +191,16 @@ fun HomeScreen(
         }
     }
 
+    // Ask for foreground location on first run too (not only when a shift starts), so a
+    // fresh install can reach a granted state without toggling a shift first.
+    LaunchedEffect(Unit) {
+        if (!locationAsked && !hasLocationPermission(context)) {
+            locationPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            )
+        }
+    }
+
     // The "Seguimiento actual" panel does not auto-rotate — the driver swipes the card.
     LaunchedEffect(viewModel.recentOrders) {
         rotatingRecentOrderIndex = 0
@@ -193,7 +219,6 @@ fun HomeScreen(
     // show a rationale first, then (API 29) a direct request or (API 30+) an app-settings deep link.
     var backgroundRationaleAcknowledged by rememberSaveable { mutableStateOf(false) }
     var showBackgroundRationale by remember { mutableStateOf(false) }
-    var permissionReevalTick by remember { mutableStateOf(0) }
     val backgroundLocationLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { permissionReevalTick++ }
@@ -241,9 +266,17 @@ fun HomeScreen(
         )
     }
 
-    LaunchedEffect(viewModel.appStatus) {
+    LaunchedEffect(viewModel.appStatus, locationAsked, notificationsAsked) {
         val status = viewModel.appStatus
-        if (status.blocking) onBlockingStatus(status)
+        if (!status.blocking) return@LaunchedEffect
+        // A missing permission escalates to the full-screen block only once we have asked
+        // for it and been refused; until then the in-place request / rationale owns it.
+        val readyToBlock = when (status) {
+            AppStatus.LocationPermissionDenied -> locationAsked
+            AppStatus.NotificationsPermissionDenied -> notificationsAsked
+            else -> true
+        }
+        if (readyToBlock) onBlockingStatus(status)
     }
 
     var dismissedStatus by remember { mutableStateOf<AppStatus?>(null) }
@@ -251,7 +284,12 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> viewModel.startPolling()
+                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> {
+                    viewModel.startPolling()
+                    // Re-check grants on every foreground return so granting a permission from
+                    // the OS settings screen clears a blocking AppStatus.
+                    permissionReevalTick++
+                }
                 Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> viewModel.stopPolling()
                 else -> Unit
             }
@@ -644,21 +682,5 @@ internal fun initialsOf(name: String?): String =
 internal fun hasLocationPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
-
-/**
- * Best-effort coordinate extraction from a Google Maps link:
- * `@lat,lng`, `?q=lat,lng` / `&query=lat,lng`, or `?ll=lat,lng`.
- */
-fun extractLatLngFromMapsLink(link: String): Pair<Double, Double>? {
-    val patterns = listOf(
-        Regex("""@(-?\d+\.\d+),(-?\d+\.\d+)"""),
-        Regex("""[?&](?:q|query)=(-?\d+\.\d+),(-?\d+\.\d+)"""),
-        Regex("""[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)"""),
-    )
-    for (pattern in patterns) {
-        pattern.find(link)?.let { return it.groupValues[1].toDouble() to it.groupValues[2].toDouble() }
-    }
-    return null
-}
 
 private const val LEADING_ITEMS_BEFORE_ORDERS = 2

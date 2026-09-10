@@ -11,6 +11,7 @@ import com.citta.driver.domain.driver.HistorialTrip
 import com.citta.driver.domain.driver.DriverStatus
 import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 
 /**
@@ -61,6 +62,11 @@ class DefaultDriverRepository(
 
     override suspend fun getOrderDetail(orderId: Int): ActiveOrder =
         api.getPedidoDetail(orderId).data.toActiveOrder()
+
+    override suspend fun resolveMapsLinkCoordinates(url: String): GeoPoint? =
+        runCatching { api.resolveGeo(url).data }
+            .getOrNull()
+            ?.let { GeoPoint(it.lat, it.lng) }
 }
 
 fun DriverStatusData.toDomain(): DriverStatus = DriverStatus(
