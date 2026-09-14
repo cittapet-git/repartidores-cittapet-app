@@ -26,6 +26,30 @@ android {
         ?: localProperties.getProperty("MAPS_API_KEY")
         ?: ""
 
+    // Release signing: keystore lives outside the repo, never committed. Values come from
+    // local.properties (gitignored) or -P overrides, same pattern as MAPS_API_KEY.
+    fun releaseSigningProp(key: String) =
+        (project.findProperty(key) as String?) ?: localProperties.getProperty(key)
+    val releaseStoreFile = releaseSigningProp("RELEASE_STORE_FILE")
+    val releaseStorePassword = releaseSigningProp("RELEASE_STORE_PASSWORD")
+    val releaseKeyAlias = releaseSigningProp("RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = releaseSigningProp("RELEASE_KEY_PASSWORD")
+    val hasReleaseSigningConfig = !releaseStoreFile.isNullOrEmpty()
+        && !releaseStorePassword.isNullOrEmpty()
+        && !releaseKeyAlias.isNullOrEmpty()
+        && !releaseKeyPassword.isNullOrEmpty()
+
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.citta.driver"
         minSdk = 26
@@ -51,6 +75,9 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             val url = (project.findProperty("API_BASE_URL") as String?) ?: prodApiBaseUrl
             buildConfigField("String", "API_BASE_URL", "\"$url\"")
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
 
             // Internal-only build: no Firebase upload credentials are configured, so stop the
             // Crashlytics plugin from adding a mapping-file upload task to assembleRelease
