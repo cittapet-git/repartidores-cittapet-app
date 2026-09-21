@@ -4,8 +4,14 @@ import com.citta.driver.domain.auth.AuthRepository
 import com.citta.driver.domain.auth.ChangePasswordError
 import com.citta.driver.domain.auth.ChangePasswordResult
 import com.citta.driver.domain.auth.DriverUser
+import com.citta.driver.domain.driver.DriverMetrics
+import com.citta.driver.domain.driver.DriverRepository
+import com.citta.driver.domain.driver.DriverStatus
+import com.citta.driver.domain.driver.HistorialTrip
 import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.maintenance.CacheCleaner
+import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.profile.FakeDriverProfileStore
 import com.citta.driver.domain.shift.FakeLocalShiftStore
 import com.citta.driver.domain.shift.LocalShiftStore
@@ -43,6 +49,26 @@ class AjustesViewModelTest {
         override suspend fun clear() { clearCalls++ }
     }
 
+    private class FakeDriverRepository(
+        var status: DriverStatus = DriverStatus(ShiftState.OFF_SHIFT, emptyList()),
+    ) : DriverRepository {
+        var getStatusError: Throwable? = null
+        override suspend fun getStatus(): DriverStatus {
+            getStatusError?.let { throw it }
+            return status
+        }
+        override suspend fun setShift(state: ShiftState): DriverStatus = status.copy(shiftState = state)
+        override suspend fun getActiveOrders(): List<ActiveOrder> = emptyList()
+        override suspend fun getRecentOrders(): List<ActiveOrder> = emptyList()
+        override suspend fun getMetrics(monthOffset: Int) = DriverMetrics(0, 0, 0.0, emptyList(), emptyList())
+        override suspend fun getHistorial(year: Int, month: Int): List<HistorialTrip> = emptyList()
+        override suspend fun searchHistorial(query: String): List<HistorialTrip> = emptyList()
+        override suspend fun startTrip(orderId: Int): ActiveOrder = throw NotImplementedError()
+        override suspend fun markDelivered(orderId: Int): ActiveOrder = throw NotImplementedError()
+        override suspend fun reportIncident(orderId: Int, input: IncidentInput) = Unit
+        override suspend fun getOrderDetail(orderId: Int): ActiveOrder = throw NotImplementedError()
+    }
+
     private val driver = DriverUser(
         id = 7,
         name = "Ana Reyes",
@@ -53,9 +79,10 @@ class AjustesViewModelTest {
 
     private fun viewModel(
         auth: AuthRepository = FakeAuthRepository(),
+        driverRepository: DriverRepository = FakeDriverRepository(),
         cacheCleaner: CacheCleaner = FakeCacheCleaner(),
         shiftStore: LocalShiftStore = FakeLocalShiftStore(),
-    ) = AjustesViewModel(auth, FakeDriverProfileStore(driver), cacheCleaner, shiftStore)
+    ) = AjustesViewModel(auth, driverRepository, FakeDriverProfileStore(driver), cacheCleaner, shiftStore)
 
     @Test
     fun `exposes the cached driver profile`() {
@@ -69,14 +96,42 @@ class AjustesViewModelTest {
     }
 
     @Test
-    fun `logout calls the auth repository`() = runTest {
+    fun `logout calls the auth repository when there is no active order`() = runTest {
         val auth = FakeAuthRepository()
-        val vm = viewModel(auth = auth)
+        val vm = viewModel(auth = auth, driverRepository = FakeDriverRepository())
 
         vm.logout()
         advanceUntilIdle()
 
         assertEquals(1, auth.logoutCalls)
+        assertNull(vm.uiState.value.logoutBlockedMessage)
+    }
+
+    @Test
+    fun `logout is blocked and never reaches the auth repository when an order is active`() = runTest {
+        val auth = FakeAuthRepository()
+        val driverRepository = FakeDriverRepository(status = DriverStatus(ShiftState.ON_SHIFT, listOf(42)))
+        val vm = viewModel(auth = auth, driverRepository = driverRepository)
+
+        vm.logout()
+        advanceUntilIdle()
+
+        assertEquals(0, auth.logoutCalls)
+        assertEquals("No puedes cerrar sesión mientras tengas un pedido activo.", vm.uiState.value.logoutBlockedMessage)
+        assertFalse(vm.uiState.value.loggingOut)
+    }
+
+    @Test
+    fun `logout fails open and still signs out when the active-order check errors`() = runTest {
+        val auth = FakeAuthRepository()
+        val driverRepository = FakeDriverRepository().apply { getStatusError = RuntimeException("network down") }
+        val vm = viewModel(auth = auth, driverRepository = driverRepository)
+
+        vm.logout()
+        advanceUntilIdle()
+
+        assertEquals(1, auth.logoutCalls)
+        assertNull(vm.uiState.value.logoutBlockedMessage)
     }
 
     @Test
