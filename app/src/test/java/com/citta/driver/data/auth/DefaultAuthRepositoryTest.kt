@@ -3,6 +3,7 @@ package com.citta.driver.data.auth
 import com.citta.driver.data.api.ApiResponse
 import com.citta.driver.data.api.AvailabilityRequest
 import com.citta.driver.data.api.ChangePasswordRequest
+import com.citta.driver.data.api.CittaApi
 import com.citta.driver.data.api.ChangePasswordResponse
 import com.citta.driver.data.api.LoginRequest
 import com.citta.driver.data.api.LoginResponse
@@ -13,6 +14,10 @@ import com.citta.driver.domain.auth.AuthException
 import com.citta.driver.domain.auth.AuthResult
 import com.citta.driver.domain.auth.ChangePasswordError
 import com.citta.driver.domain.auth.ChangePasswordResult
+import com.citta.driver.domain.messaging.FcmRegistrationResult
+import com.citta.driver.domain.messaging.FcmTokenProvider
+import com.citta.driver.domain.messaging.FcmTokenRegistrar
+import com.citta.driver.domain.messaging.RegisteredTokenStore
 import com.citta.driver.domain.session.SessionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +66,36 @@ class DefaultAuthRepositoryTest {
             ApiResponse(Any())
     }
 
+    private class FakeFcmTokenRegistrar : FcmTokenRegistrar {
+        val registeredTokens = mutableListOf<String>()
+        override suspend fun register(token: String): FcmRegistrationResult {
+            registeredTokens += token
+            return FcmRegistrationResult.Registered
+        }
+    }
+
+    private class FakeFcmTokenProvider(var token: String? = "fcm-token-1") : FcmTokenProvider {
+        override suspend fun currentToken(): String? = token
+    }
+
+    private class FakeRegisteredTokenStore : RegisteredTokenStore {
+        var lastToken: String? = null
+        var clearCalls = 0
+        override fun lastRegisteredToken(): String? = lastToken
+        override fun saveRegisteredToken(token: String) { lastToken = token }
+        override fun clear() { clearCalls++; lastToken = null }
+    }
+
+    /** Builds a repository with fake FCM collaborators, only overriding what a test cares about. */
+    private fun repo(
+        api: CittaApi,
+        session: SessionRepository,
+        profileStore: com.citta.driver.domain.profile.DriverProfileStore = com.citta.driver.domain.profile.FakeDriverProfileStore(),
+        fcmTokenRegistrar: FcmTokenRegistrar = FakeFcmTokenRegistrar(),
+        fcmTokenProvider: FcmTokenProvider = FakeFcmTokenProvider(),
+        registeredTokenStore: RegisteredTokenStore = FakeRegisteredTokenStore(),
+    ) = DefaultAuthRepository(api, session, profileStore, fcmTokenRegistrar, fcmTokenProvider, registeredTokenStore)
+
     private fun httpException(code: Int): HttpException {
         val body = """{"error":{"message":"Invalid credentials"}}"""
             .toResponseBody("application/json".toMediaTypeOrNull())
@@ -73,9 +108,9 @@ class DefaultAuthRepositoryTest {
         val api = FakeApi().apply {
             loginResult = { LoginResponse(token = "jwt-abc", expires_at = 1_900_000_000L, user = repartidor) }
         }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val result = repo.login("ana@example.com", "secret")
+        val result = authRepo.login("ana@example.com", "secret")
 
         assertTrue(result is AuthResult.Success)
         val user = (result as AuthResult.Success).user
@@ -98,9 +133,9 @@ class DefaultAuthRepositoryTest {
                 )
             }
         }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val result = repo.login("op@example.com", "secret")
+        val result = authRepo.login("op@example.com", "secret")
 
         assertEquals(AuthResult.Failure(AuthError.NotDriver), result)
         assertNull(session.peekToken())
@@ -110,9 +145,9 @@ class DefaultAuthRepositoryTest {
     fun `maps a 401 login failure to a generic invalid-credentials result`() = runTest {
         val session = FakeSession()
         val api = FakeApi().apply { loginResult = { throw httpException(401) } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val result = repo.login("ana@example.com", "wrong")
+        val result = authRepo.login("ana@example.com", "wrong")
 
         assertEquals(AuthResult.Failure(AuthError.InvalidCredentials), result)
         assertNull(session.peekToken())
@@ -122,18 +157,18 @@ class DefaultAuthRepositoryTest {
     fun `maps a 403 login failure to not-driver`() = runTest {
         val session = FakeSession()
         val api = FakeApi().apply { loginResult = { throw httpException(403) } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        assertEquals(AuthResult.Failure(AuthError.NotDriver), repo.login("x@example.com", "y"))
+        assertEquals(AuthResult.Failure(AuthError.NotDriver), authRepo.login("x@example.com", "y"))
     }
 
     @Test
     fun `refreshUser returns the driver user when the role still matches`() = runTest {
         val session = FakeSession(initial = "jwt-abc")
         val api = FakeApi().apply { meResult = { repartidor } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val user = repo.refreshUser()
+        val user = authRepo.refreshUser()
 
         assertEquals("repartidor", user.rol)
     }
@@ -142,9 +177,9 @@ class DefaultAuthRepositoryTest {
     fun `refreshUser throws a typed not-driver error when the role changed`() = runTest {
         val session = FakeSession(initial = "jwt-abc")
         val api = FakeApi().apply { meResult = { repartidor.copy(rol = "operador") } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val thrown = runCatching { repo.refreshUser() }.exceptionOrNull()
+        val thrown = runCatching { authRepo.refreshUser() }.exceptionOrNull()
 
         assertTrue(thrown is AuthException)
         assertEquals(AuthError.NotDriver, (thrown as AuthException).error)
@@ -154,9 +189,9 @@ class DefaultAuthRepositoryTest {
     fun `refreshUser maps a 401 into a typed session-expired error`() = runTest {
         val session = FakeSession(initial = "jwt-old")
         val api = FakeApi().apply { meResult = { throw httpException(401) } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        val thrown = runCatching { repo.refreshUser() }.exceptionOrNull()
+        val thrown = runCatching { authRepo.refreshUser() }.exceptionOrNull()
 
         assertTrue(thrown is AuthException)
         assertEquals(AuthError.SessionExpired, (thrown as AuthException).error)
@@ -169,9 +204,9 @@ class DefaultAuthRepositoryTest {
         val profile = com.citta.driver.domain.profile.FakeDriverProfileStore(
             com.citta.driver.domain.auth.DriverUser(7, "Ana Reyes", null, "repartidor", null, mustChangePassword = true),
         )
-        val repo = DefaultAuthRepository(api, session, profile)
+        val authRepo = repo(api, session, profile)
 
-        assertEquals(ChangePasswordResult.Success, repo.changePassword("old-secret", "new-secret-1"))
+        assertEquals(ChangePasswordResult.Success, authRepo.changePassword("old-secret", "new-secret-1"))
         assertEquals(false, profile.peek()?.mustChangePassword)
     }
 
@@ -179,11 +214,11 @@ class DefaultAuthRepositoryTest {
     fun `changePassword maps a 422 to an incorrect-current-password failure`() = runTest {
         val session = FakeSession(initial = "jwt-abc")
         val api = FakeApi().apply { changePasswordResult = { throw httpException(422) } }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
         assertEquals(
             ChangePasswordResult.Failure(ChangePasswordError.IncorrectCurrentPassword),
-            repo.changePassword("wrong", "new-secret-1"),
+            authRepo.changePassword("wrong", "new-secret-1"),
         )
     }
 
@@ -193,10 +228,62 @@ class DefaultAuthRepositoryTest {
         val api = object : FakeApi() {
             override suspend fun logout() = throw httpException(500)
         }
-        val repo = DefaultAuthRepository(api, session, com.citta.driver.domain.profile.FakeDriverProfileStore())
+        val authRepo = repo(api, session)
 
-        repo.logout()
+        authRepo.logout()
 
         assertNull(session.peekToken())
+    }
+
+    @Test
+    fun `logout forgets the registered FCM token, so the next login re-registers it under the new user`() = runTest {
+        val session = FakeSession(initial = "jwt-abc")
+        val api = FakeApi()
+        val registeredTokenStore = FakeRegisteredTokenStore().apply { lastToken = "shared-device-token" }
+        val authRepo = repo(api, session, registeredTokenStore = registeredTokenStore)
+
+        authRepo.logout()
+
+        assertEquals(1, registeredTokenStore.clearCalls)
+        assertNull(registeredTokenStore.lastRegisteredToken())
+    }
+
+    @Test
+    fun `a successful login proactively registers the device's current FCM token`() = runTest {
+        val session = FakeSession()
+        val api = FakeApi().apply {
+            loginResult = { LoginResponse(token = "jwt-abc", expires_at = 1_900_000_000L, user = repartidor) }
+        }
+        val fcmTokenRegistrar = FakeFcmTokenRegistrar()
+        val authRepo = repo(
+            api,
+            session,
+            fcmTokenRegistrar = fcmTokenRegistrar,
+            fcmTokenProvider = FakeFcmTokenProvider(token = "device-token-1"),
+        )
+
+        authRepo.login("ana@example.com", "secret")
+
+        assertEquals(listOf("device-token-1"), fcmTokenRegistrar.registeredTokens)
+    }
+
+    @Test
+    fun `login still succeeds when the device has no FCM token to register`() = runTest {
+        val session = FakeSession()
+        val api = FakeApi().apply {
+            loginResult = { LoginResponse(token = "jwt-abc", expires_at = 1_900_000_000L, user = repartidor) }
+        }
+        val fcmTokenRegistrar = FakeFcmTokenRegistrar()
+        val authRepo = repo(
+            api,
+            session,
+            fcmTokenRegistrar = fcmTokenRegistrar,
+            fcmTokenProvider = FakeFcmTokenProvider(token = null),
+        )
+
+        val result = authRepo.login("ana@example.com", "secret")
+
+        assertTrue(result is AuthResult.Success)
+        assertTrue(fcmTokenRegistrar.registeredTokens.isEmpty())
     }
 }

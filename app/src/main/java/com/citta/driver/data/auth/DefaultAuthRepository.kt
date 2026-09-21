@@ -11,6 +11,9 @@ import com.citta.driver.domain.auth.ChangePasswordError
 import com.citta.driver.domain.auth.ChangePasswordResult
 import com.citta.driver.domain.auth.DriverUser
 import com.citta.driver.domain.auth.isDriverRole
+import com.citta.driver.domain.messaging.FcmTokenProvider
+import com.citta.driver.domain.messaging.FcmTokenRegistrar
+import com.citta.driver.domain.messaging.RegisteredTokenStore
 import com.citta.driver.domain.profile.DriverProfileStore
 import com.citta.driver.domain.session.SessionRepository
 import retrofit2.HttpException
@@ -26,6 +29,9 @@ class DefaultAuthRepository(
     private val api: CittaApi,
     private val session: SessionRepository,
     private val profileStore: DriverProfileStore,
+    private val fcmTokenRegistrar: FcmTokenRegistrar,
+    private val fcmTokenProvider: FcmTokenProvider,
+    private val registeredTokenStore: RegisteredTokenStore,
 ) : AuthRepository {
 
     override suspend fun login(identifier: String, password: String): AuthResult {
@@ -44,7 +50,23 @@ class DefaultAuthRepository(
             return AuthResult.Failure(AuthError.NotDriver)
         }
         profileStore.save(user)
+        registerFcmToken()
         return AuthResult.Success(user)
+    }
+
+    /**
+     * Proactively (re)registers the device's current FCM token with this driver's identity.
+     * `onNewToken` in the messaging service only fires on the SDK's own token rotation, which
+     * has nothing to do with who's logged in — without this, switching drivers on a shared
+     * device would leave the backend's token→user_id mapping pointed at whoever logged in last
+     * *before* the OS happened to rotate the token, since it's literally the same token value
+     * and the registrar's dedupe would otherwise skip it. `logout()` clears the remembered
+     * token below so this always re-registers with the backend, even for a token this device
+     * already had.
+     */
+    private suspend fun registerFcmToken() {
+        val token = runCatching { fcmTokenProvider.currentToken() }.getOrNull() ?: return
+        runCatching { fcmTokenRegistrar.register(token) }
     }
 
     override suspend fun logout() {
@@ -55,6 +77,7 @@ class DefaultAuthRepository(
         }
         session.clearToken()
         profileStore.clear()
+        registeredTokenStore.clear()
     }
 
     override suspend fun refreshUser(): DriverUser {

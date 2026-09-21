@@ -24,6 +24,9 @@ class DefaultFcmTokenRegistrarTest {
         override fun saveRegisteredToken(token: String) {
             stored = token
         }
+        override fun clear() {
+            stored = null
+        }
     }
 
     private fun httpError(code: Int): HttpException {

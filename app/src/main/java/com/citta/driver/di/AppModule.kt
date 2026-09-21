@@ -12,6 +12,7 @@ import com.citta.driver.data.driver.DefaultDriverRepository
 import com.citta.driver.data.driver.OutboxBackedDriverRepository
 import com.citta.driver.data.messaging.DefaultFcmTokenRegistrar
 import com.citta.driver.data.maintenance.AppCacheCleaner
+import com.citta.driver.data.messaging.FirebaseFcmTokenProvider
 import com.citta.driver.data.messaging.PrefsRegisteredTokenStore
 import com.citta.driver.data.notifications.DriverDatabase
 import com.citta.driver.data.notifications.NotificationHistoryDao
@@ -27,6 +28,7 @@ import com.citta.driver.data.tracking.LocationUploadRepository
 import com.citta.driver.domain.auth.AuthRepository
 import com.citta.driver.domain.driver.DriverRepository
 import com.citta.driver.domain.maintenance.CacheCleaner
+import com.citta.driver.domain.messaging.FcmTokenProvider
 import com.citta.driver.domain.messaging.FcmTokenRegistrar
 import com.citta.driver.domain.messaging.PushEventBus
 import com.citta.driver.domain.messaging.RegisteredTokenStore
@@ -143,7 +145,21 @@ object AppModule {
         api: CittaApi,
         session: SessionRepository,
         profileStore: DriverProfileStore,
-    ): AuthRepository = DefaultAuthRepository(api, session, profileStore)
+        fcmTokenRegistrar: FcmTokenRegistrar,
+        fcmTokenProvider: FcmTokenProvider,
+        registeredTokenStore: RegisteredTokenStore,
+    ): AuthRepository = DefaultAuthRepository(
+        api,
+        session,
+        profileStore,
+        fcmTokenRegistrar,
+        fcmTokenProvider,
+        registeredTokenStore,
+    )
+
+    @Provides
+    @Singleton
+    fun provideFcmTokenProvider(): FcmTokenProvider = FirebaseFcmTokenProvider()
 
     @Provides
     @Singleton
