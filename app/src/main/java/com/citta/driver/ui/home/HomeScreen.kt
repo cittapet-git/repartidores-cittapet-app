@@ -129,12 +129,22 @@ fun HomeScreen(
     // in-place request / rationale on Home is never yanked away before the user can answer.
     var locationAsked by rememberSaveable { mutableStateOf(false) }
     var notificationsAsked by rememberSaveable { mutableStateOf(false) }
+    var batteryOptimizationAsked by rememberSaveable { mutableStateOf(false) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) {
         notificationsAsked = true
         permissionReevalTick++
+    }
+
+    // Not a runtime permission dialog — a Settings screen the user can back out of, so there is
+    // no granted/denied callback to act on; asking again next launch would be a worse nag than
+    // just moving on.
+    val batteryOptimizationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) {
+        batteryOptimizationAsked = true
     }
 
     var showNotificationRationale by remember { mutableStateOf(false) }
@@ -145,6 +155,13 @@ fun HomeScreen(
             PackageManager.PERMISSION_GRANTED
         ) {
             showNotificationRationale = true
+        }
+    }
+
+    var showBatteryRationale by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!batteryOptimizationAsked && !isIgnoringBatteryOptimizations(context)) {
+            showBatteryRationale = true
         }
     }
 
@@ -578,6 +595,29 @@ fun HomeScreen(
         )
     }
 
+    if (showBatteryRationale) {
+        RationaleDialog(
+            title = "Optimización de batería",
+            body = "Algunos celulares apagan el rastreo y las notificaciones en segundo plano " +
+                "para ahorrar batería. Desactiva la optimización de batería para esta app y " +
+                "así no se corte el seguimiento de tus pedidos.",
+            confirmLabel = "Continuar",
+            onConfirm = {
+                showBatteryRationale = false
+                batteryOptimizationLauncher.launch(
+                    Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:${context.packageName}"),
+                    ),
+                )
+            },
+            onDismiss = {
+                showBatteryRationale = false
+                batteryOptimizationAsked = true
+            },
+        )
+    }
+
     if (showBackgroundRationale) {
         RationaleDialog(
             title = "Ubicación en segundo plano",
@@ -682,5 +722,11 @@ internal fun initialsOf(name: String?): String =
 internal fun hasLocationPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
+
+internal fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        ?: return true
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
 
 private const val LEADING_ITEMS_BEFORE_ORDERS = 2

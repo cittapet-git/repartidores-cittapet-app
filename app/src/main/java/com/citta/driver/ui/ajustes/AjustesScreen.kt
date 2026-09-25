@@ -128,6 +128,7 @@ fun AjustesScreen(
             Spacer(Modifier.height(32.dp))
             Button(
                 onClick = viewModel::logout,
+                enabled = !state.loggingOut,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -135,11 +136,27 @@ fun AjustesScreen(
                     contentColor = CittaOnPrimary,
                 ),
             ) {
-                Icon(Icons.Filled.Logout, contentDescription = null)
+                if (state.loggingOut) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = CittaOnPrimary, strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Filled.Logout, contentDescription = null)
+                }
                 Spacer(Modifier.width(8.dp))
                 Text(text = "Cerrar sesión", fontWeight = FontWeight.SemiBold)
             }
         }
+    }
+
+    val logoutBlockedMessage = state.logoutBlockedMessage
+    if (logoutBlockedMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissLogoutBlocked,
+            title = { Text("No puedes cerrar sesión") },
+            text = { Text(logoutBlockedMessage) },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissLogoutBlocked) { Text("Entendido") }
+            },
+        )
     }
 }
 
