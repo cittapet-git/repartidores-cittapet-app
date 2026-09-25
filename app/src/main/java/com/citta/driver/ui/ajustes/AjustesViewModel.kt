@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.citta.driver.domain.auth.AuthRepository
 import com.citta.driver.domain.auth.ChangePasswordError
 import com.citta.driver.domain.auth.ChangePasswordResult
+import com.citta.driver.domain.driver.DriverRepository
 import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.maintenance.CacheCleaner
 import com.citta.driver.domain.profile.DriverProfileStore
@@ -36,11 +37,14 @@ data class AjustesUiState(
     val passwordChanged: Boolean = false,
     val cacheClearing: Boolean = false,
     val cacheCleared: Boolean = false,
+    val loggingOut: Boolean = false,
+    val logoutBlockedMessage: String? = null,
 )
 
 @HiltViewModel
 class AjustesViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val driverRepository: DriverRepository,
     profileStore: DriverProfileStore,
     private val cacheCleaner: CacheCleaner,
     private val localShiftStore: LocalShiftStore,
@@ -55,10 +59,29 @@ class AjustesViewModel @Inject constructor(
     val uiState: StateFlow<AjustesUiState> = _uiState.asStateFlow()
 
     fun logout() {
+        if (_uiState.value.loggingOut) return
+        _uiState.update { it.copy(loggingOut = true) }
         viewModelScope.launch {
+            // Mirrors the server-side guard on ending a shift with an active order
+            // (HomeViewModel.toggleShift's 422) but client-side, since logout has
+            // no equivalent backend check. Fails open on a network error: we'd
+            // rather let the driver sign out than trap them on a false negative.
+            val hasActiveOrders = runCatching { driverRepository.getStatus().hasActiveOrders }.getOrDefault(false)
+            if (hasActiveOrders) {
+                _uiState.update {
+                    it.copy(
+                        loggingOut = false,
+                        logoutBlockedMessage = "No puedes cerrar sesión mientras tengas un pedido activo.",
+                    )
+                }
+                return@launch
+            }
             runCatching { authRepository.logout() }
+            _uiState.update { it.copy(loggingOut = false) }
         }
     }
+
+    fun dismissLogoutBlocked() = _uiState.update { it.copy(logoutBlockedMessage = null) }
 
     // ─── Change password ──────────────────────────────────────────────────────
 

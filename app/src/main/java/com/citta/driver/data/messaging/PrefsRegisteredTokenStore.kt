@@ -18,6 +18,10 @@ class PrefsRegisteredTokenStore(context: Context) : RegisteredTokenStore {
         prefs.edit().putString(KEY_TOKEN, token).apply()
     }
 
+    override fun clear() {
+        prefs.edit().remove(KEY_TOKEN).apply()
+    }
+
     private companion object {
         const val PREFS_FILE = "citta_fcm_registration"
         const val KEY_TOKEN = "last_registered_token"
