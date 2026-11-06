@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,18 +36,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.ReadOnlyComposable
 import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.ui.theme.CittaGreen
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
 import com.citta.driver.ui.theme.CittaTextSecondary
 
 /** Palette colour for a status tone. */
+@Composable
+@ReadOnlyComposable
 private fun OrderStatusTone.color(): Color = when (this) {
-    OrderStatusTone.IN_PROGRESS -> CittaPrimary
+    OrderStatusTone.IN_PROGRESS -> CittaPrimaryText
     OrderStatusTone.COMPLETED -> CittaGreen
     OrderStatusTone.NEUTRAL -> CittaTextSecondary
 }
@@ -189,7 +195,7 @@ private fun TrackingOrderContent(
                     if (order.isShared) {
                         Text(
                             text = "Compartido con otros repartidores",
-                            color = CittaPrimary,
+                            color = CittaPrimaryText,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -212,13 +218,17 @@ private fun TrackingOrderContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 StatusPill(order.status)
+                val uriHandler = LocalUriHandler.current
+                val mapsUrl = order.mapsLink?.takeIf { it.isNotBlank() }
                 OrderLocationMap(
                     mapsLink = order.mapsLink,
                     modifier = Modifier
-                        .fillMaxWidth()
                         .weight(1f)
+                        .padding(end = 28.dp)
+                        .aspectRatio(1f, matchHeightConstraintsFirst = true)
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.dp, CittaTextSecondary.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
+                    onClick = mapsUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } },
                 )
             }
         }

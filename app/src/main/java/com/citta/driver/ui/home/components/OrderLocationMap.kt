@@ -1,6 +1,7 @@
 package com.citta.driver.ui.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
@@ -30,9 +31,9 @@ import com.google.maps.android.compose.rememberMarkerState
 
 /**
  * A fixed, non-interactive map of an order's delivery location: coordinates parsed from
- * [mapsLink], a single pin, every gesture disabled. When [onMarkerClick] is null (the Home
- * tracking card) the pin does nothing — the driver opens the order detail to interact with
- * the map. When it is provided (order detail screen) tapping the pin runs it.
+ * [mapsLink], a single pin, every gesture disabled. When [onMarkerClick] is null the pin does
+ * nothing; when it is provided (order detail screen) tapping the pin runs it. When [onClick] is
+ * provided (Home tracking card) a tap anywhere on the map runs it, to open the location in Maps.
  *
  * Falls back to a plain panel with a centred pin when [mapsLink] has no usable coordinates.
  */
@@ -42,6 +43,7 @@ fun OrderLocationMap(
     modifier: Modifier = Modifier,
     mapContentPadding: PaddingValues = PaddingValues(),
     onMarkerClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
 ) {
     val destination = remember(mapsLink) {
         mapsLink?.let(::parseMapsLinkLatLng)?.let { (lat, lng) -> LatLng(lat, lng) }
@@ -98,6 +100,11 @@ fun OrderLocationMap(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
+        // Transparent layer above the map so a tap anywhere on it runs [onClick]; the map itself
+        // has every gesture disabled, so nothing underneath needs the touch.
+        if (onClick != null) {
+            Box(Modifier.matchParentSize().clickable(onClick = onClick))
         }
     }
 }

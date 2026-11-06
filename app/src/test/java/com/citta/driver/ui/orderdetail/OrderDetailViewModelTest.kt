@@ -10,9 +10,12 @@ import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.util.MainDispatcherRule
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -115,5 +118,88 @@ class OrderDetailViewModelTest {
 
         assertNull(vm.destination)
         assertTrue(repo.resolveCalls.isEmpty())
+    }
+
+    // ── Pedido completado: el repartidor se entera cuando el staff lo completa en el tracker ─────
+
+    private fun orderWith(status: OrderStatus) = order("https://maps.google.com/?q=10.5,-66.9").copy(status = status)
+
+    /** Answers each `getOrderDetail` with the next order in the list; the last one repeats. */
+    private class SequenceDriverRepository(orders: List<ActiveOrder>) : DriverRepository by FakeDriverRepository(orders.first()) {
+        private val queue = ArrayDeque(orders)
+        var calls = 0
+            private set
+        var failNext = false
+
+        override suspend fun getOrderDetail(orderId: Int): ActiveOrder {
+            calls += 1
+            if (failNext) {
+                failNext = false
+                throw RuntimeException("offline")
+            }
+            return if (queue.size > 1) queue.removeFirst() else queue.first()
+        }
+    }
+
+    @Test
+    fun `announces the completion when the staff completes the order while the screen is open`() = runTest {
+        val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.COMPLETED)))
+        val vm = OrderDetailViewModel(repo)
+        vm.load(1)
+        advanceUntilIdle()
+        val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
+
+        advanceTimeBy(1_100)
+        assertFalse("still delivered: nothing to announce yet", vm.completionAnnounced)
+
+        advanceTimeBy(1_000)
+        assertTrue(vm.completionAnnounced)
+        assertEquals(OrderStatus.COMPLETED, vm.order?.status)
+        watcher.cancel()
+    }
+
+    @Test
+    fun `does not announce an order that was already completed when the screen was opened`() = runTest {
+        val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.COMPLETED)))
+        val vm = OrderDetailViewModel(repo)
+        vm.load(1)
+        advanceUntilIdle()
+        val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
+
+        advanceTimeBy(5_000)
+
+        assertFalse(vm.completionAnnounced)
+        watcher.cancel()
+    }
+
+    @Test
+    fun `keeps watching after a failed refresh`() = runTest {
+        val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.COMPLETED)))
+        val vm = OrderDetailViewModel(repo)
+        vm.load(1)
+        advanceUntilIdle()
+        repo.failNext = true
+        val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
+
+        advanceTimeBy(1_100)
+        assertFalse("the failed refresh changes nothing on screen", vm.completionAnnounced)
+        assertNull(vm.error)
+
+        advanceTimeBy(1_000)
+        assertTrue("the next refresh still sees the completion", vm.completionAnnounced)
+        watcher.cancel()
+    }
+
+    @Test
+    fun `does not watch before the order has loaded`() = runTest {
+        val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.COMPLETED)))
+        val vm = OrderDetailViewModel(repo)
+        val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
+
+        advanceTimeBy(3_000)
+
+        assertFalse(vm.completionAnnounced)
+        assertEquals(0, repo.calls)
+        watcher.cancel()
     }
 }
