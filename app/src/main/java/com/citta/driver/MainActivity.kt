@@ -7,7 +7,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.citta.driver.domain.theme.ThemePreferenceStore
 import com.citta.driver.domain.messaging.PushEventBus
 import com.citta.driver.domain.messaging.PushMessage
 import com.citta.driver.domain.messaging.PushType
@@ -23,12 +26,16 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var pushEventBus: PushEventBus
 
+    @Inject
+    lateinit var themeStore: ThemePreferenceStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         forwardDeepLink(intent)
 
         setContent {
-            CittaDriverTheme {
+            val darkMode by themeStore.darkMode.collectAsState()
+            CittaDriverTheme(darkTheme = darkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
