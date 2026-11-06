@@ -245,6 +245,6 @@ interface CittaApi {
     @GET("/api/v1/geo/resolve")
     suspend fun resolveGeo(@Query("url") url: String): ApiResponse<GeoPointDto>
 
-    @GET("/api/v1/orders/{id}/tracking")
+    @GET("/api/v1/pedidos/{id}/tracking")
     suspend fun getTrackingSnapshot(@Path("id") orderId: Int): ApiResponse<TrackingSnapshotDto>
 }
