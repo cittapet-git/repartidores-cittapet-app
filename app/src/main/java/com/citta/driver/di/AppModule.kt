@@ -45,6 +45,7 @@ import com.citta.driver.domain.tracking.DefaultTrackingCoordinator
 import com.citta.driver.domain.tracking.LocationProvider
 import com.citta.driver.domain.tracking.LocationUploader
 import com.citta.driver.domain.tracking.TrackingCoordinator
+import com.citta.driver.domain.tracking.SessionTrackingGuard
 import com.citta.driver.domain.tracking.TrackingSessionController
 import com.citta.driver.service.FusedLocationProvider
 import dagger.Module
@@ -138,6 +139,13 @@ object AppModule {
         coordinator: TrackingCoordinator,
         locationProvider: LocationProvider,
     ): TrackingSessionController = TrackingSessionController(coordinator, locationProvider)
+
+    @Provides
+    @Singleton
+    fun provideSessionTrackingGuard(
+        session: SessionRepository,
+        shiftStore: LocalShiftStore,
+    ): SessionTrackingGuard = SessionTrackingGuard(session, shiftStore)
 
     @Provides
     @Singleton
