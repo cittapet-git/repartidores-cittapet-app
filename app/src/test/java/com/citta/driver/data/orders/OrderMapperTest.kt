@@ -86,6 +86,23 @@ class OrderMapperTest {
     }
 
     @Test
+    fun `maps the drivers who already closed their own part of the order`() {
+        val order = pedido(assignedIds = listOf(7, 9)).copy(delivered_driver_user_ids = listOf(9)).toActiveOrder()
+
+        assertEquals(listOf(9), order.deliveredDriverUserIds)
+        assertTrue(order.hasDelivered(9))
+        assertFalse(order.hasDelivered(7))
+    }
+
+    @Test
+    fun `an order from a backend that does not send the delivered list has no closed parts`() {
+        val order = pedido().toActiveOrder()
+
+        assertEquals(emptyList<Int>(), order.deliveredDriverUserIds)
+        assertFalse(order.hasDelivered(7))
+    }
+
+    @Test
     fun `an order assigned to a single driver is not shared`() {
         val order = pedido(assignedIds = listOf(7)).toActiveOrder()
 
