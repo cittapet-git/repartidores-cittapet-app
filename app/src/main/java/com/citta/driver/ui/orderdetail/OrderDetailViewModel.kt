@@ -10,6 +10,7 @@ import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.orders.parseMapsLinkLatLng
+import com.citta.driver.domain.profile.DriverProfileStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -17,6 +18,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class OrderDetailViewModel @Inject constructor(
     private val driverRepository: DriverRepository,
+    private val profileStore: DriverProfileStore,
 ) : ViewModel() {
 
     var order by mutableStateOf<ActiveOrder?>(null)
@@ -29,6 +31,16 @@ class OrderDetailViewModel @Inject constructor(
      */
     var destination by mutableStateOf<GeoPoint?>(null)
         private set
+
+    /**
+     * This driver already closed their part of a shared order that is still open for the others.
+     * The screen shows that instead of offering "Marcar entregado" again.
+     */
+    val ownPartDelivered: Boolean
+        get() {
+            val userId = profileStore.peek()?.id ?: return false
+            return order?.hasDelivered(userId) == true
+        }
 
     var isLoading by mutableStateOf(true)
         private set

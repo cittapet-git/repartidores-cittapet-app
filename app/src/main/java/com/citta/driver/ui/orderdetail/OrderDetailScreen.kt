@@ -175,6 +175,7 @@ fun OrderDetailScreen(
                         callEnabled = phoneDigits != null,
                         onStartTrip = viewModel::startTrip,
                         onMarkDelivered = viewModel::markDelivered,
+                        ownPartDelivered = viewModel.ownPartDelivered,
                         onReportIncident = viewModel::openIncidentForm,
                         onWhatsApp = openWhatsApp,
                         onCall = openCall,
@@ -332,6 +333,7 @@ private fun OrderSheet(
     callEnabled: Boolean,
     onStartTrip: () -> Unit,
     onMarkDelivered: () -> Unit,
+    ownPartDelivered: Boolean,
     onReportIncident: () -> Unit,
     onWhatsApp: () -> Unit,
     onCall: () -> Unit,
@@ -351,6 +353,7 @@ private fun OrderSheet(
             error = actionError,
             onStartTrip = onStartTrip,
             onMarkDelivered = onMarkDelivered,
+            ownPartDelivered = ownPartDelivered,
         )
 
         ClientCard(
@@ -384,6 +387,37 @@ private fun StatusActionButton(
     error: String?,
     onStartTrip: () -> Unit,
     onMarkDelivered: () -> Unit,
+    ownPartDelivered: Boolean,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when {
+            ownPartDelivered && status != OrderStatus.DELIVERED && status != OrderStatus.COMPLETED -> {
+                Text(
+                    text = "Tu parte está entregada",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = CittaGreen,
+                )
+                Text(
+                    text = "El pedido se completa cuando los demás repartidores terminen la suya.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            else -> StatusButtonFor(status, inFlight, onStartTrip, onMarkDelivered)
+        }
+        error?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+private fun StatusButtonFor(
+    status: OrderStatus,
+    inFlight: Boolean,
+    onStartTrip: () -> Unit,
+    onMarkDelivered: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (status) {
@@ -407,9 +441,6 @@ private fun StatusActionButton(
             )
 
             else -> Unit
-        }
-        error?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         }
     }
 }

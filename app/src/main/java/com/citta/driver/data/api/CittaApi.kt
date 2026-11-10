@@ -22,7 +22,12 @@ data class LogoutResponse(val ok: Boolean)
 data class ChangePasswordRequest(val current_password: String, val new_password: String)
 
 /** `POST /api/v1/auth/change-password` returns a flat `{ "ok": true }`. */
-data class ChangePasswordResponse(val ok: Boolean = true)
+data class ChangePasswordResponse(
+    val ok: Boolean = true,
+    /** Fresh session token: the change revokes the one that made the call (SEC-15). Null from older backends. */
+    val token: String? = null,
+    val expires_at: Long? = null,
+)
 
 /**
  * Backend user shape shared by `login.user` and `/auth/me`. Both `role` and `rol` carry the
@@ -144,6 +149,12 @@ data class PedidoDto(
     val status: String? = null,
     val assigned_driver_user_id: Int? = null,
     val assigned_driver_user_ids: List<Int> = emptyList(),
+    /**
+     * Drivers who already closed their own part of a shared order. Nullable on purpose: Gson
+     * ignores Kotlin defaults for a key the backend omits (older deployments do), which would
+     * leave a non-null list null and crash the mapper.
+     */
+    val delivered_driver_user_ids: List<Int>? = null,
     val created_at: String? = null,
     val updated_at: String? = null,
 )
