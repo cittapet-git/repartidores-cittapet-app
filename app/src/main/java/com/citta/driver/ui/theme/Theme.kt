@@ -1,37 +1,63 @@
 package com.citta.driver.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 
 /**
- * Città driver theme. Light only for this pass — the palette is lifted straight from the Home
- * reference. `MainActivity` wraps the whole app in [CittaDriverTheme]; there is no dark scheme
- * yet, so a device in dark mode still gets these light tokens.
+ * Città driver theme. `MainActivity` wraps the whole app in [CittaDriverTheme] and passes the
+ * driver's choice from Ajustes. Light is the default so previews and the status screen look as
+ * before.
  */
-private val CittaLightColorScheme = lightColorScheme(
-    primary = CittaPrimary,
-    onPrimary = CittaOnPrimary,
-    primaryContainer = CittaRedContainer,
-    onPrimaryContainer = CittaRedPressed,
-    secondary = CittaGreen,
-    onSecondary = CittaOnPrimary,
-    background = CittaBackground,
-    onBackground = CittaTextPrimary,
-    surface = CittaSurface,
-    onSurface = CittaTextPrimary,
-    surfaceVariant = CittaSurface,
-    onSurfaceVariant = CittaTextSecondary,
-    outline = CittaTextSecondary,
-    error = CittaError,
-    onError = CittaOnPrimary,
-)
+private fun CittaColors.toColorScheme(dark: Boolean) =
+    if (dark) {
+        darkColorScheme(
+            primary = red,
+            onPrimary = onPrimary,
+            primaryContainer = redContainer,
+            onPrimaryContainer = primaryText,
+            secondary = green,
+            onSecondary = onPrimary,
+            background = background,
+            onBackground = textPrimary,
+            surface = surface,
+            onSurface = textPrimary,
+            surfaceVariant = panelSurface,
+            onSurfaceVariant = textSecondary,
+            outline = textSecondary,
+            error = error,
+            onError = onPrimary,
+        )
+    } else {
+        lightColorScheme(
+            primary = red,
+            onPrimary = onPrimary,
+            primaryContainer = redContainer,
+            onPrimaryContainer = redPressed,
+            secondary = green,
+            onSecondary = onPrimary,
+            background = background,
+            onBackground = textPrimary,
+            surface = surface,
+            onSurface = textPrimary,
+            surfaceVariant = surface,
+            onSurfaceVariant = textSecondary,
+            outline = textSecondary,
+            error = error,
+            onError = onPrimary,
+        )
+    }
 
 @Composable
-fun CittaDriverTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = CittaLightColorScheme,
-        typography = CittaTypography,
-        content = content,
-    )
+fun CittaDriverTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
+    val colors = if (darkTheme) DarkCittaColors else LightCittaColors
+    CompositionLocalProvider(LocalCittaColors provides colors) {
+        MaterialTheme(
+            colorScheme = colors.toColorScheme(dark = darkTheme),
+            typography = CittaTypography,
+            content = content,
+        )
+    }
 }

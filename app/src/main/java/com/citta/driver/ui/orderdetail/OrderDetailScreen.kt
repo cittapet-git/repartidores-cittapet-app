@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.ReportProblem
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.GeoPoint
@@ -71,6 +73,7 @@ import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaGreen
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
 import com.citta.driver.ui.theme.CittaTextSecondary
@@ -85,12 +88,75 @@ import com.google.maps.android.compose.rememberMarkerState
 
 private val SHEET_PEEK_HEIGHT = 320.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** How long "Pedido completado" stays on screen before going back to Home. */
+private const val COMPLETED_MESSAGE_MS = 1_500L
+
+/**
+ * Order detail. While it is open it also watches for the staff completing the order in the tracker:
+ * that is when the payment officially counts, so the driver sees "Pedido completado" for 2 seconds
+ * and is taken back to Home ([onCompleted]).
+ */
 @Composable
 fun OrderDetailScreen(
     orderId: Int,
     onBack: () -> Unit,
+    onCompleted: () -> Unit = {},
     viewModel: OrderDetailViewModel = hiltViewModel(),
+) {
+    LaunchedEffect(orderId) { viewModel.watchForCompletion() }
+
+    Box(Modifier.fillMaxSize()) {
+        OrderDetailBody(orderId = orderId, onBack = onBack, viewModel = viewModel)
+
+        if (viewModel.completionAnnounced) {
+            OrderCompletedOverlay()
+            LaunchedEffect(Unit) {
+                delay(COMPLETED_MESSAGE_MS)
+                onCompleted()
+            }
+        }
+    }
+}
+
+/** Dimmed full-screen message shown when the order was completed. Not interactive. */
+@Composable
+private fun OrderCompletedOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(CittaSurface)
+                .padding(horizontal = 40.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = CittaGreen,
+                modifier = Modifier.size(72.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "Pedido completado",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = CittaTextPrimary,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OrderDetailBody(
+    orderId: Int,
+    onBack: () -> Unit,
+    viewModel: OrderDetailViewModel,
 ) {
     LaunchedEffect(orderId) { viewModel.load(orderId) }
 
@@ -102,7 +168,7 @@ fun OrderDetailScreen(
             modifier = Modifier.fillMaxSize().background(CittaBackground),
             contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator(color = CittaPrimary)
+            CircularProgressIndicator(color = CittaPrimaryText)
         }
 
         viewModel.error != null -> Box(Modifier.fillMaxSize().background(CittaBackground)) {
@@ -680,7 +746,7 @@ private fun DetailMessageState(
         Spacer(Modifier.height(18.dp))
         Text(
             text = actionLabel,
-            color = CittaPrimary,
+            color = CittaPrimaryText,
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.clickable(onClick = onAction),
         )
