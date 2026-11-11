@@ -178,6 +178,8 @@ fun DriverNavHost(
             OrderDetailScreen(
                 orderId = backStackEntry.arguments?.getInt(DriverRoute.DETALLE_ARG) ?: return@composable,
                 onBack = { navController.popBackStack() },
+                // The staff completed the order: after the 2-second message, straight to Home.
+                onCompleted = { navController.popBackStack(DriverRoute.HOME, inclusive = false) },
             )
         }
         composable(

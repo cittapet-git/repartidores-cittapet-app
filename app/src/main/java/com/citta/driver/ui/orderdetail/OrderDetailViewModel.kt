@@ -9,10 +9,12 @@ import com.citta.driver.domain.driver.DriverRepository
 import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
+import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.domain.orders.parseMapsLinkLatLng
 import com.citta.driver.domain.profile.DriverProfileStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -58,6 +60,14 @@ class OrderDetailViewModel @Inject constructor(
     var incidentSubmitted by mutableStateOf(false)
         private set
 
+    /**
+     * The staff completed this order in the tracker while the screen was open, which is when the
+     * payment officially counts. The screen shows "Pedido completado" and returns to Home. It is
+     * never set for an order that was already completed when the screen opened.
+     */
+    var completionAnnounced by mutableStateOf(false)
+        private set
+
     // Incident form draft.
     var incidentFormOpen by mutableStateOf(false)
         private set
@@ -77,6 +87,23 @@ class OrderDetailViewModel @Inject constructor(
                 }
             isLoading = false
             resolveDestination()
+        }
+    }
+
+    /**
+     * Keeps the open order fresh and announces when it becomes `completed`. Runs until the caller's
+     * coroutine is cancelled (the screen leaving the composition). A failed refresh changes nothing
+     * and is retried on the next tick; it never shows an error.
+     */
+    suspend fun watchForCompletion(intervalMs: Long = COMPLETION_POLL_MS) {
+        while (true) {
+            delay(intervalMs)
+            val previous = order ?: continue
+            val fresh = runCatching { driverRepository.getOrderDetail(previous.id) }.getOrNull() ?: continue
+            order = fresh
+            if (previous.status != OrderStatus.COMPLETED && fresh.status == OrderStatus.COMPLETED) {
+                completionAnnounced = true
+            }
         }
     }
 
@@ -157,5 +184,10 @@ class OrderDetailViewModel @Inject constructor(
                 actionInFlight = false
             }
         }
+    }
+
+    private companion object {
+        /** Same cadence as the Home polling: the driver sees the completion within seconds. */
+        const val COMPLETION_POLL_MS = 10_000L
     }
 }

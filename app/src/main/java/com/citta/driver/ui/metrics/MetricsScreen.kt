@@ -57,6 +57,7 @@ import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaOnPrimary
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaPrimarySoft
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
@@ -169,7 +170,7 @@ private fun SoftRedPill(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = CittaPrimary,
+            color = CittaPrimaryText,
         )
     }
 }
