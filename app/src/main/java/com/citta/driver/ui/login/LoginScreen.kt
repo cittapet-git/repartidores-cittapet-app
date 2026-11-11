@@ -1,15 +1,18 @@
 package com.citta.driver.ui.login
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.citta.driver.R
 import com.citta.driver.domain.auth.AuthErrorMessages
 import com.citta.driver.domain.auth.AuthRepository
 import com.citta.driver.domain.auth.AuthResult
@@ -61,6 +64,12 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Image(
+            painter = painterResource(R.drawable.cittapet_logo),
+            contentDescription = "CittaPet",
+            modifier = Modifier.size(120.dp),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
         Text("Citta Driver", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
 
