@@ -9,6 +9,8 @@ import com.citta.driver.domain.orders.ActiveOrder
 import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.orders.OrderStatus
+import com.citta.driver.domain.auth.DriverUser
+import com.citta.driver.domain.profile.FakeDriverProfileStore
 import com.citta.driver.util.MainDispatcherRule
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -26,10 +28,10 @@ class OrderDetailViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private fun order(mapsLink: String?) = ActiveOrder(
+    private fun order(mapsLink: String?, delivered: List<Int> = emptyList(), status: OrderStatus = OrderStatus.ASSIGNED) = ActiveOrder(
         id = 1,
         sourceRef = "CIT-1",
-        status = OrderStatus.ASSIGNED,
+        status = status,
         customerName = "Ana",
         customerPhone = "+58000",
         deliveryAddress = "Av 1",
@@ -40,7 +42,8 @@ class OrderDetailViewModelTest {
         totalAmount = 10.0,
         pagoDoble = false,
         requiresSignedSheet = false,
-        assignedDriverUserIds = listOf(7),
+        assignedDriverUserIds = listOf(7, 9),
+        deliveredDriverUserIds = delivered,
     )
 
     private class FakeDriverRepository(
@@ -71,7 +74,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `parses inline coordinates on-device without hitting the backend`() = runTest {
         val repo = FakeDriverRepository(order("https://maps.google.com/?q=10.5,-66.9"))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
 
         vm.load(1)
         advanceUntilIdle()
@@ -86,7 +89,7 @@ class OrderDetailViewModelTest {
             detail = order("https://maps.app.goo.gl/abc123"),
             resolved = GeoPoint(9.1, -63.2),
         )
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
 
         vm.load(1)
         advanceUntilIdle()
@@ -98,7 +101,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `leaves destination null when neither the parser nor the backend can resolve it`() = runTest {
         val repo = FakeDriverRepository(detail = order("https://maps.app.goo.gl/nope"), resolved = null)
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
 
         vm.load(1)
         advanceUntilIdle()
@@ -111,7 +114,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `does not call the resolver when the order has no maps link`() = runTest {
         val repo = FakeDriverRepository(order(mapsLink = null))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
 
         vm.load(1)
         advanceUntilIdle()
@@ -144,7 +147,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `announces the completion when the staff completes the order while the screen is open`() = runTest {
         val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.COMPLETED)))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
         vm.load(1)
         advanceUntilIdle()
         val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
@@ -161,7 +164,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `does not announce an order that was already completed when the screen was opened`() = runTest {
         val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.COMPLETED)))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
         vm.load(1)
         advanceUntilIdle()
         val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
@@ -175,7 +178,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `keeps watching after a failed refresh`() = runTest {
         val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.DELIVERED), orderWith(OrderStatus.COMPLETED)))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
         vm.load(1)
         advanceUntilIdle()
         repo.failNext = true
@@ -193,7 +196,7 @@ class OrderDetailViewModelTest {
     @Test
     fun `does not watch before the order has loaded`() = runTest {
         val repo = SequenceDriverRepository(listOf(orderWith(OrderStatus.COMPLETED)))
-        val vm = OrderDetailViewModel(repo)
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
         val watcher = launch { vm.watchForCompletion(intervalMs = 1_000) }
 
         advanceTimeBy(3_000)
@@ -201,5 +204,38 @@ class OrderDetailViewModelTest {
         assertFalse(vm.completionAnnounced)
         assertEquals(0, repo.calls)
         watcher.cancel()
+    }
+
+    @Test
+    fun `a driver who already closed their part of a shared order has no delivery to make`() = runTest {
+        val repo = FakeDriverRepository(order("https://maps.google.com/?q=1,2", delivered = listOf(7), status = OrderStatus.IN_TRANSIT))
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
+
+        vm.load(1)
+        advanceUntilIdle()
+
+        assertTrue(vm.ownPartDelivered)
+    }
+
+    @Test
+    fun `a driver whose partner already delivered still has their own delivery to make`() = runTest {
+        val repo = FakeDriverRepository(order("https://maps.google.com/?q=1,2", delivered = listOf(9), status = OrderStatus.IN_TRANSIT))
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(DriverUser(7, "Ana", null, "repartidor", null)))
+
+        vm.load(1)
+        advanceUntilIdle()
+
+        assertFalse(vm.ownPartDelivered)
+    }
+
+    @Test
+    fun `without a cached profile the screen never claims the part is delivered`() = runTest {
+        val repo = FakeDriverRepository(order("https://maps.google.com/?q=1,2", delivered = listOf(7), status = OrderStatus.IN_TRANSIT))
+        val vm = OrderDetailViewModel(repo, FakeDriverProfileStore(null))
+
+        vm.load(1)
+        advanceUntilIdle()
+
+        assertFalse(vm.ownPartDelivered)
     }
 }
