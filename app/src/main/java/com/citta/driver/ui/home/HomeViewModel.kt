@@ -13,7 +13,9 @@ import com.citta.driver.domain.messaging.PushEventBus
 import com.citta.driver.domain.observability.AppStatus
 import com.citta.driver.domain.observability.AppStatusMapper
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.IncidentInput
+import com.citta.driver.domain.orders.parseMapsLinkLatLng
 import com.citta.driver.domain.profile.DriverProfileStore
 import com.citta.driver.domain.shift.LocalShiftStore
 import com.citta.driver.domain.tracking.TrackingCoordinator
@@ -116,6 +118,29 @@ class HomeViewModel @Inject constructor(
     fun cardStateFor(orderId: Int): OrderCardState = cardState[orderId] ?: OrderCardState()
 
     // ── Loading & polling ────────────────────────────────────────────────────
+
+    private val resolvedDestinations = mutableMapOf<String, GeoPoint>()
+
+    /**
+     * Coordinates of an order's delivery link for the Home map card. Long links carry them, so
+     * the on-device parser answers without network; shortened links (maps.app.goo.gl) go through
+     * the backend, same as the order detail screen. Successful lookups are cached by link so the
+     * card does not hit the backend on every recomposition or refresh; failures are not cached,
+     * so a transient error is retried. Never throws: the card just keeps its placeholder.
+     */
+    suspend fun resolveDestination(link: String): GeoPoint? {
+        parseMapsLinkLatLng(link)?.let { (lat, lng) -> return GeoPoint(lat, lng) }
+        resolvedDestinations[link]?.let { return it }
+        val point = try {
+            driverRepository.resolveMapsLinkCoordinates(link)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        if (point != null) resolvedDestinations[link] = point
+        return point
+    }
 
     fun load() {
         profileStore.peek()?.let {

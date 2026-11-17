@@ -476,6 +476,7 @@ fun HomeScreen(
                                                 order = currentOrder,
                                                 onOpenDetail = { onOpenOrderDetail(currentOrder.id) },
                                                 modifier = Modifier.fillMaxSize(),
+                                                resolveLink = viewModel::resolveDestination,
                                             )
                                         }
                                     }
