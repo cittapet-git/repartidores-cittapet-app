@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.ReadOnlyComposable
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.ui.theme.CittaGreen
 import com.citta.driver.ui.theme.CittaPrimary
@@ -89,12 +90,14 @@ fun TrackingOrderCard(
     order: ActiveOrder,
     onOpenDetail: () -> Unit,
     modifier: Modifier = Modifier,
+    resolveLink: (suspend (String) -> GeoPoint?)? = null,
 ) {
     TrackingOrderContent(
         order = order,
         onOpenDetail = onOpenDetail,
         modifier = modifier,
         useCardContainer = true,
+        resolveLink = resolveLink,
     )
 }
 
@@ -103,12 +106,14 @@ fun TrackingOrderPanelContent(
     order: ActiveOrder,
     onOpenDetail: () -> Unit,
     modifier: Modifier = Modifier,
+    resolveLink: (suspend (String) -> GeoPoint?)? = null,
 ) {
     TrackingOrderContent(
         order = order,
         onOpenDetail = onOpenDetail,
         modifier = modifier,
         useCardContainer = false,
+        resolveLink = resolveLink,
     )
 }
 
@@ -119,6 +124,7 @@ private fun TrackingOrderContent(
     onOpenDetail: () -> Unit,
     modifier: Modifier = Modifier,
     useCardContainer: Boolean,
+    resolveLink: (suspend (String) -> GeoPoint?)? = null,
 ) {
     val content: @Composable () -> Unit = {
         Row(
@@ -229,6 +235,7 @@ private fun TrackingOrderContent(
                         .clip(RoundedCornerShape(16.dp))
                         .border(1.dp, CittaTextSecondary.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
                     onClick = mapsUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } },
+                    resolveLink = resolveLink,
                 )
             }
         }
