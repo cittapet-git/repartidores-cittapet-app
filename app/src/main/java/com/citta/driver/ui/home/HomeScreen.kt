@@ -97,6 +97,7 @@ import com.citta.driver.ui.status.AppStatusBanner
 import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
 import com.citta.driver.ui.theme.CittaTextSecondary
@@ -475,6 +476,7 @@ fun HomeScreen(
                                                 order = currentOrder,
                                                 onOpenDetail = { onOpenOrderDetail(currentOrder.id) },
                                                 modifier = Modifier.fillMaxSize(),
+                                                resolveLink = viewModel::resolveDestination,
                                             )
                                         }
                                     }
@@ -543,7 +545,7 @@ fun HomeScreen(
                                     },
                                     label = "recent-order-rotator",
                                 ) { order ->
-                                    RecentOrderRow(order = order)
+                                    RecentOrderRow(order = order, onClick = { onOpenOrderDetail(order.id) })
                                 }
 
                                 if (viewModel.recentOrders.size > 1) {
@@ -695,7 +697,7 @@ private fun SectionHeader(
             color = CittaTextPrimary,
         )
         if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction) { Text(actionLabel, color = CittaPrimary) }
+            TextButton(onClick = onAction) { Text(actionLabel, color = CittaPrimaryText) }
         }
     }
 }

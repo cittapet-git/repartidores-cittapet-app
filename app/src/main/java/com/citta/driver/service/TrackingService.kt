@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.observability.Logger
 import com.citta.driver.domain.shift.LocalShiftStore
+import com.citta.driver.domain.tracking.SessionTrackingGuard
 import com.citta.driver.domain.tracking.TrackingSessionController
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +48,9 @@ class TrackingService : Service() {
     lateinit var localShiftStore: LocalShiftStore
 
     @Inject
+    lateinit var sessionGuard: SessionTrackingGuard
+
+    @Inject
     lateinit var logger: Logger
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -71,10 +75,27 @@ class TrackingService : Service() {
             return START_NOT_STICKY
         }
 
-        localShiftStore.setDesiredShiftState(ShiftState.ON_SHIFT)
         startForegroundCompliant()
+
+        // No session (a forced logout already cleared the token): there is nobody to track for. The foreground
+        // notification above is already up, which the system requires after startForegroundService.
+        if (!sessionGuard.hasSession()) {
+            endBecauseSessionLost()
+            return START_NOT_STICKY
+        }
+
+        localShiftStore.setDesiredShiftState(ShiftState.ON_SHIFT)
         sessionController.start(serviceScope)
+        // If the session ends while tracking (the token is cleared on a 401), stop instead of uploading without one.
+        sessionGuard.watch(serviceScope) { endBecauseSessionLost() }
         return START_STICKY
+    }
+
+    private fun endBecauseSessionLost() {
+        logger.warn(TAG, "Session ended; stopping tracking.")
+        sessionController.stop()
+        stopForegroundCompat()
+        stopSelf()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

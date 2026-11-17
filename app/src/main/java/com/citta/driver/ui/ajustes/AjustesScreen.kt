@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -37,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,6 +61,7 @@ import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaOnPrimary
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
 import com.citta.driver.ui.theme.CittaTextSecondary
@@ -76,6 +79,7 @@ fun AjustesScreen(
 ) {
     val profile by viewModel.profile.collectAsState()
     val state by viewModel.uiState.collectAsState()
+    val darkMode by viewModel.darkMode.collectAsState()
 
     Box(
         modifier = Modifier
@@ -121,6 +125,11 @@ fun AjustesScreen(
             ChangePasswordCard(state = state, viewModel = viewModel)
 
             Spacer(Modifier.height(28.dp))
+            SectionLabel("Apariencia")
+            Spacer(Modifier.height(8.dp))
+            DarkModeCard(checked = darkMode, onCheckedChange = viewModel::setDarkMode)
+
+            Spacer(Modifier.height(28.dp))
             SectionLabel("Aplicación")
             Spacer(Modifier.height(8.dp))
             ClearCacheCard(state = state, viewModel = viewModel)
@@ -157,6 +166,32 @@ fun AjustesScreen(
                 TextButton(onClick = viewModel::dismissLogoutBlocked) { Text("Entendido") }
             },
         )
+    }
+}
+
+@Composable
+private fun DarkModeCard(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(CittaPanelSurface)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.DarkMode, contentDescription = null, tint = CittaPrimary)
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Modo oscuro",
+            style = MaterialTheme.typography.bodyLarge,
+            color = CittaTextPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -198,7 +233,7 @@ private fun ChangePasswordCard(
             Text(
                 text = "Contraseña actualizada.",
                 style = MaterialTheme.typography.bodySmall,
-                color = CittaPrimary,
+                color = CittaPrimaryText,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
@@ -324,7 +359,7 @@ private fun ClearCacheCard(
             Text(
                 text = "Caché borrado.",
                 style = MaterialTheme.typography.bodySmall,
-                color = CittaPrimary,
+                color = CittaPrimaryText,
             )
         }
     }

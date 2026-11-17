@@ -8,8 +8,8 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.shift.LocalShiftStore
+import com.citta.driver.domain.tracking.SessionTrackingGuard
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -31,14 +31,17 @@ class TrackingRearmWorker(
     @InstallIn(SingletonComponent::class)
     interface RearmEntryPoint {
         fun localShiftStore(): LocalShiftStore
+
+        fun sessionTrackingGuard(): SessionTrackingGuard
     }
 
     override suspend fun doWork(): Result {
-        val shiftStore = EntryPointAccessors
+        val guard = EntryPointAccessors
             .fromApplication(applicationContext, RearmEntryPoint::class.java)
-            .localShiftStore()
+            .sessionTrackingGuard()
 
-        if (shiftStore.desiredShiftState() == ShiftState.ON_SHIFT) {
+        // Only for a driver who is on shift AND still signed in; a stale on-shift intent without a session is cleared.
+        if (guard.shouldRearm()) {
             runCatching {
                 ContextCompat.startForegroundService(
                     applicationContext,

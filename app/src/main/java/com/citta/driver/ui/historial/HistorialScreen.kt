@@ -67,6 +67,7 @@ import com.citta.driver.ui.theme.CittaBackground
 import com.citta.driver.ui.theme.CittaOnPrimary
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
+import com.citta.driver.ui.theme.CittaPrimaryText
 import com.citta.driver.ui.theme.CittaPrimarySoft
 import com.citta.driver.ui.theme.CittaRed
 import com.citta.driver.ui.theme.CittaSurface
@@ -215,11 +216,11 @@ private fun MonthButton(title: String, onClick: () -> Unit) {
 @Composable
 private fun MonthList(vm: HistorialViewModel, onOpenDetail: (Int) -> Unit) {
     when {
-        vm.isLoading -> CenteredBox { CircularProgressIndicator(color = CittaPrimary) }
+        vm.isLoading -> CenteredBox { CircularProgressIndicator(color = CittaPrimaryText) }
         vm.loadError != null -> CenteredBox {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(vm.loadError!!, color = CittaTextSecondary, style = MaterialTheme.typography.bodyMedium)
-                TextButton(onClick = vm::retry) { Text("Reintentar", color = CittaPrimary) }
+                TextButton(onClick = vm::retry) { Text("Reintentar", color = CittaPrimaryText) }
             }
         }
         vm.trips.isEmpty() -> CenteredBox {
@@ -250,7 +251,7 @@ private fun SearchResults(vm: HistorialViewModel, onOpenDetail: (Int) -> Unit) {
             )
         }
         vm.isSearchLoading && vm.searchResults.isEmpty() ->
-            CenteredBox { CircularProgressIndicator(color = CittaPrimary) }
+            CenteredBox { CircularProgressIndicator(color = CittaPrimaryText) }
         vm.searchResults.isEmpty() -> CenteredBox {
             Text(
                 "Sin resultados.",

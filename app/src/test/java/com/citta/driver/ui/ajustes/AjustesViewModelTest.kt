@@ -15,6 +15,8 @@ import com.citta.driver.domain.orders.IncidentInput
 import com.citta.driver.domain.profile.FakeDriverProfileStore
 import com.citta.driver.domain.shift.FakeLocalShiftStore
 import com.citta.driver.domain.shift.LocalShiftStore
+import com.citta.driver.domain.theme.FakeThemePreferenceStore
+import com.citta.driver.domain.theme.ThemePreferenceStore
 import com.citta.driver.util.MainDispatcherRule
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -82,7 +84,25 @@ class AjustesViewModelTest {
         driverRepository: DriverRepository = FakeDriverRepository(),
         cacheCleaner: CacheCleaner = FakeCacheCleaner(),
         shiftStore: LocalShiftStore = FakeLocalShiftStore(),
-    ) = AjustesViewModel(auth, driverRepository, FakeDriverProfileStore(driver), cacheCleaner, shiftStore)
+        themeStore: ThemePreferenceStore = FakeThemePreferenceStore(),
+    ) = AjustesViewModel(auth, driverRepository, FakeDriverProfileStore(driver), cacheCleaner, shiftStore, themeStore)
+
+    @Test
+    fun `dark mode mirrors the stored preference`() {
+        assertFalse(viewModel(themeStore = FakeThemePreferenceStore(false)).darkMode.value)
+        assertTrue(viewModel(themeStore = FakeThemePreferenceStore(true)).darkMode.value)
+    }
+
+    @Test
+    fun `toggling dark mode saves it in the store`() {
+        val store = FakeThemePreferenceStore(false)
+        val vm = viewModel(themeStore = store)
+
+        vm.setDarkMode(true)
+
+        assertTrue(store.darkMode.value)
+        assertTrue(vm.darkMode.value)
+    }
 
     @Test
     fun `exposes the cached driver profile`() {

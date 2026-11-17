@@ -6,9 +6,9 @@ package com.citta.driver.domain.orders
  * or acts on.
  *
  * [assignedDriverUserIds] carries every driver currently assigned to the order. When more than
- * one driver is assigned the order is shared; per-driver completion is still a backend
- * dependency (`marcar-entregado` closes the whole order today), so [isShared] only drives a
- * shared indicator, never a local per-driver split.
+ * one driver is assigned the order is shared. `marcar-entregado` closes only the caller's part
+ * and the order is delivered once every driver closed theirs, so [deliveredDriverUserIds] says
+ * who already did: the others must still see their own delivery action.
  */
 data class ActiveOrder(
     val id: Int,
@@ -25,6 +25,8 @@ data class ActiveOrder(
     val pagoDoble: Boolean,
     val requiresSignedSheet: Boolean,
     val assignedDriverUserIds: List<Int>,
+    /** Drivers who already closed their own part. Empty for an unshared order or an older backend. */
+    val deliveredDriverUserIds: List<Int> = emptyList(),
     /** Product lines for WooCommerce-imported orders; empty for manual orders. */
     val items: List<OrderLineItem> = emptyList(),
     /** Backend `created_at` timestamp string; used as the "assigned" date on the tracking card. */
@@ -37,4 +39,6 @@ data class ActiveOrder(
     val updatedAt: String? = null,
 ) {
     val isShared: Boolean get() = assignedDriverUserIds.size > 1
+
+    fun hasDelivered(userId: Int): Boolean = userId in deliveredDriverUserIds
 }

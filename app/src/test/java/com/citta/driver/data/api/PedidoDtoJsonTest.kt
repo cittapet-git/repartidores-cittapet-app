@@ -76,4 +76,24 @@ class PedidoDtoJsonTest {
         assertEquals("AB-1", items.single().sku)
         assertEquals(2, items.single().quantity)
     }
+
+    @Test
+    fun `a backend that omits delivered_driver_user_ids maps to no closed parts`() {
+        val order = gson.fromJson(
+            """{"id":1,"total_amount":5.0,"assigned_driver_user_ids":[7,9]}""",
+            PedidoDto::class.java,
+        ).toActiveOrder()
+
+        assertEquals(emptyList<Int>(), order.deliveredDriverUserIds)
+    }
+
+    @Test
+    fun `delivered_driver_user_ids is read when the backend sends it`() {
+        val order = gson.fromJson(
+            """{"id":1,"total_amount":5.0,"assigned_driver_user_ids":[7,9],"delivered_driver_user_ids":[9]}""",
+            PedidoDto::class.java,
+        ).toActiveOrder()
+
+        assertEquals(listOf(9), order.deliveredDriverUserIds)
+    }
 }

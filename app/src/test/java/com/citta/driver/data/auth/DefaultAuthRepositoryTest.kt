@@ -211,6 +211,29 @@ class DefaultAuthRepositoryTest {
     }
 
     @Test
+    fun `changePassword stores the fresh token the backend returns so the session survives the revocation`() = runTest {
+        val session = FakeSession(initial = "old-jwt")
+        val api = FakeApi().apply {
+            changePasswordResult = { ChangePasswordResponse(ok = true, token = "fresh-jwt", expires_at = 1900000000L) }
+        }
+        val authRepo = repo(api, session)
+
+        assertEquals(ChangePasswordResult.Success, authRepo.changePassword("old-secret", "new-secret-1"))
+        assertEquals("fresh-jwt", session.peekToken())
+    }
+
+    @Test
+    fun `changePassword keeps the current token when the backend does not return a new one`() = runTest {
+        val session = FakeSession(initial = "old-jwt")
+        val api = FakeApi().apply { changePasswordResult = { ChangePasswordResponse(ok = true) } }
+        val authRepo = repo(api, session)
+
+        authRepo.changePassword("old-secret", "new-secret-1")
+
+        assertEquals("old-jwt", session.peekToken())
+    }
+
+    @Test
     fun `changePassword maps a 422 to an incorrect-current-password failure`() = runTest {
         val session = FakeSession(initial = "jwt-abc")
         val api = FakeApi().apply { changePasswordResult = { throw httpException(422) } }

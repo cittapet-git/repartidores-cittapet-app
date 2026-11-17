@@ -1,6 +1,7 @@
 package com.citta.driver.ui.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
@@ -10,11 +11,15 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.parseMapsLinkLatLng
 import com.citta.driver.ui.theme.CittaPanelSurface
 import com.citta.driver.ui.theme.CittaPrimary
@@ -30,9 +35,13 @@ import com.google.maps.android.compose.rememberMarkerState
 
 /**
  * A fixed, non-interactive map of an order's delivery location: coordinates parsed from
- * [mapsLink], a single pin, every gesture disabled. When [onMarkerClick] is null (the Home
- * tracking card) the pin does nothing — the driver opens the order detail to interact with
- * the map. When it is provided (order detail screen) tapping the pin runs it.
+ * [mapsLink], a single pin, every gesture disabled. When [onMarkerClick] is null the pin does
+ * nothing; when it is provided (order detail screen) tapping the pin runs it. When [onClick] is
+ * provided (Home tracking card) a tap anywhere on the map runs it, to open the location in Maps.
+ *
+ * Coordinates come from the link itself when it carries them. A shortened link has none, so when
+ * [resolveLink] is provided it is asked for them (the Home card passes the backend lookup) and the
+ * map appears once it answers.
  *
  * Falls back to a plain panel with a centred pin when [mapsLink] has no usable coordinates.
  */
@@ -42,10 +51,24 @@ fun OrderLocationMap(
     modifier: Modifier = Modifier,
     mapContentPadding: PaddingValues = PaddingValues(),
     onMarkerClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    resolveLink: (suspend (String) -> GeoPoint?)? = null,
 ) {
-    val destination = remember(mapsLink) {
+    val parsed = remember(mapsLink) {
         mapsLink?.let(::parseMapsLinkLatLng)?.let { (lat, lng) -> LatLng(lat, lng) }
     }
+    val latestResolveLink by rememberUpdatedState(resolveLink)
+    val resolvedDestination by produceState(initialValue = parsed, mapsLink) {
+        // Reset first so a reused slot (Home card swipe) never keeps the previous order's pin.
+        value = parsed
+        val link = mapsLink
+        val resolver = latestResolveLink
+        if (parsed == null && !link.isNullOrBlank() && resolver != null) {
+            value = resolver(link)?.let { LatLng(it.lat, it.lng) }
+        }
+    }
+    // Local copy: a delegated property cannot be smart-cast to non-null below.
+    val destination: LatLng? = resolvedDestination
 
     Box(modifier.background(CittaPanelSurface)) {
         if (destination != null) {
@@ -98,6 +121,11 @@ fun OrderLocationMap(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
+        // Transparent layer above the map so a tap anywhere on it runs [onClick]; the map itself
+        // has every gesture disabled, so nothing underneath needs the touch.
+        if (onClick != null) {
+            Box(Modifier.matchParentSize().clickable(onClick = onClick))
         }
     }
 }

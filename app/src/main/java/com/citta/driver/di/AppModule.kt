@@ -20,6 +20,8 @@ import com.citta.driver.data.notifications.RoomNotificationHistoryRepository
 import com.citta.driver.data.outbox.FileOutboxQueue
 import com.citta.driver.data.outbox.RetrofitOutboxActionSender
 import com.citta.driver.data.profile.PrefsDriverProfileStore
+import com.citta.driver.data.theme.PrefsThemePreferenceStore
+import com.citta.driver.domain.theme.ThemePreferenceStore
 import com.citta.driver.data.session.DefaultSessionRepository
 import com.citta.driver.data.session.EncryptedTokenStore
 import com.citta.driver.data.session.TokenStore
@@ -45,6 +47,7 @@ import com.citta.driver.domain.tracking.DefaultTrackingCoordinator
 import com.citta.driver.domain.tracking.LocationProvider
 import com.citta.driver.domain.tracking.LocationUploader
 import com.citta.driver.domain.tracking.TrackingCoordinator
+import com.citta.driver.domain.tracking.SessionTrackingGuard
 import com.citta.driver.domain.tracking.TrackingSessionController
 import com.citta.driver.service.FusedLocationProvider
 import dagger.Module
@@ -79,6 +82,11 @@ object AppModule {
     @Singleton
     fun provideDriverProfileStore(@ApplicationContext context: Context): DriverProfileStore =
         PrefsDriverProfileStore(context)
+
+    @Provides
+    @Singleton
+    fun provideThemePreferenceStore(@ApplicationContext context: Context): ThemePreferenceStore =
+        PrefsThemePreferenceStore(context)
 
     @Provides
     @Singleton
@@ -138,6 +146,13 @@ object AppModule {
         coordinator: TrackingCoordinator,
         locationProvider: LocationProvider,
     ): TrackingSessionController = TrackingSessionController(coordinator, locationProvider)
+
+    @Provides
+    @Singleton
+    fun provideSessionTrackingGuard(
+        session: SessionRepository,
+        shiftStore: LocalShiftStore,
+    ): SessionTrackingGuard = SessionTrackingGuard(session, shiftStore)
 
     @Provides
     @Singleton

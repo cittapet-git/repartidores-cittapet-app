@@ -96,12 +96,15 @@ class DefaultAuthRepository(
         newPassword: String,
     ): ChangePasswordResult {
         return try {
-            api.changePassword(
+            val response = api.changePassword(
                 ChangePasswordRequest(
                     current_password = currentPassword,
                     new_password = newPassword,
                 ),
             )
+            // The change revokes the token that made the call (SEC-15); keep the fresh one so the
+            // driver is not sent back to the login screen.
+            response.token?.takeIf { it.isNotBlank() }?.let { session.saveToken(it) }
             profileStore.peek()?.let { profileStore.save(it.copy(mustChangePassword = false)) }
             ChangePasswordResult.Success
         } catch (t: Throwable) {

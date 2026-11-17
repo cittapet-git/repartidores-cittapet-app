@@ -10,6 +10,7 @@ import com.citta.driver.domain.driver.ShiftState
 import com.citta.driver.domain.maintenance.CacheCleaner
 import com.citta.driver.domain.profile.DriverProfileStore
 import com.citta.driver.domain.shift.LocalShiftStore
+import com.citta.driver.domain.theme.ThemePreferenceStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,9 +49,14 @@ class AjustesViewModel @Inject constructor(
     profileStore: DriverProfileStore,
     private val cacheCleaner: CacheCleaner,
     private val localShiftStore: LocalShiftStore,
+    private val themeStore: ThemePreferenceStore,
 ) : ViewModel() {
 
     val profile: StateFlow<com.citta.driver.domain.auth.DriverUser?> = profileStore.profile
+
+    val darkMode: StateFlow<Boolean> = themeStore.darkMode
+
+    fun setDarkMode(enabled: Boolean) = themeStore.setDarkMode(enabled)
 
     /** Shift state for the shared top bar; mirrors the home header. */
     val onShift: Boolean get() = localShiftStore.desiredShiftState() == ShiftState.ON_SHIFT

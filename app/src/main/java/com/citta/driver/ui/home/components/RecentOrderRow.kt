@@ -1,6 +1,7 @@
 package com.citta.driver.ui.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,12 +33,13 @@ import com.citta.driver.ui.theme.CittaTextSecondary
  * `updated_at` of the delivered/completed order.
  */
 @Composable
-fun RecentOrderRow(order: ActiveOrder, modifier: Modifier = Modifier) {
+fun RecentOrderRow(order: ActiveOrder, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(CittaSurface)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

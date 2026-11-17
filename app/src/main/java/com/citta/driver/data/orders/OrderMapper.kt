@@ -26,6 +26,7 @@ fun PedidoDto.toActiveOrder(): ActiveOrder = ActiveOrder(
     pagoDoble = pago_doble == 1,
     requiresSignedSheet = requiere_hoja_firmada == 1,
     assignedDriverUserIds = assigned_driver_user_ids,
+    deliveredDriverUserIds = delivered_driver_user_ids.orEmpty(),
     items = mapLineItems(items, metadata),
     createdAt = created_at,
     updatedAt = updated_at,
