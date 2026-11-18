@@ -106,6 +106,12 @@ data class MetricsDto(
  * emitted by `OrderMapper::mapItems`). Dashboard / manual orders carry these; legacy
  * WooCommerce orders instead carry lines inside [PedidoDto.metadata].
  */
+/** Another driver on a shared order, as the backend sends it: only the id and the name. */
+data class CoDriverDto(
+    val id: Int,
+    val name: String,
+)
+
 data class OrderItemDto(
     val sku: String? = null,
     val descripcion: String? = null,
@@ -155,6 +161,8 @@ data class PedidoDto(
      * leave a non-null list null and crash the mapper.
      */
     val delivered_driver_user_ids: List<Int>? = null,
+    /** The other drivers on a shared order (id and name only). Nullable: an older backend omits it. */
+    val co_drivers: List<CoDriverDto>? = null,
     val created_at: String? = null,
     val updated_at: String? = null,
 )

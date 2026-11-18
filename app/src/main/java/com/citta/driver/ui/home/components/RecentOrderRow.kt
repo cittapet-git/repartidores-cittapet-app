@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.diligenciaLabel
 import com.citta.driver.ui.theme.CittaSurface
 import com.citta.driver.ui.theme.CittaTextPrimary
 import com.citta.driver.ui.theme.CittaTextSecondary
@@ -58,7 +59,9 @@ fun RecentOrderRow(order: ActiveOrder, modifier: Modifier = Modifier, onClick: (
                 color = CittaTextPrimary,
             )
             Text(
-                text = order.customerName?.takeIf { it.isNotBlank() } ?: "Cliente sin nombre",
+                text = order.diligenciaLabel
+                    ?: order.customerName?.takeIf { it.isNotBlank() }
+                    ?: "Cliente sin nombre",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CittaTextSecondary,
                 maxLines = 1,

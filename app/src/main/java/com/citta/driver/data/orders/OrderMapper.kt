@@ -3,6 +3,7 @@ package com.citta.driver.data.orders
 import com.citta.driver.data.api.OrderItemDto
 import com.citta.driver.data.api.PedidoDto
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.CoDriver
 import com.citta.driver.domain.orders.OrderLineItem
 import com.citta.driver.domain.orders.OrderStatus
 import com.google.gson.JsonElement
@@ -30,6 +31,8 @@ fun PedidoDto.toActiveOrder(): ActiveOrder = ActiveOrder(
     items = mapLineItems(items, metadata),
     createdAt = created_at,
     updatedAt = updated_at,
+    tipoPedido = tipo_pedido,
+    coDrivers = co_drivers.orEmpty().map { CoDriver(id = it.id, name = it.name) },
 )
 
 /**
