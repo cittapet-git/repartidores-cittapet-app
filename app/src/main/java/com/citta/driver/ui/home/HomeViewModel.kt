@@ -1,5 +1,6 @@
 package com.citta.driver.ui.home
 
+import com.citta.driver.data.api.ApiErrorMessage
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -325,7 +326,7 @@ class HomeViewModel @Inject constructor(
                 updateCard(orderId) { it.copy(inFlight = false, error = null) }
             } catch (e: Exception) {
                 updateCard(orderId) {
-                    it.copy(inFlight = false, error = "No se pudo completar la acción. Intenta de nuevo.")
+                    it.copy(inFlight = false, error = ApiErrorMessage.of(e, "No se pudo completar la acción. Intenta de nuevo."))
                 }
             }
         }
