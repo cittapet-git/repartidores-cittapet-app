@@ -1,8 +1,12 @@
 package com.citta.driver.data.orders
 
+import com.citta.driver.data.api.CoDriverDto
 import com.citta.driver.data.api.OrderItemDto
 import com.citta.driver.data.api.PedidoDto
+import com.citta.driver.domain.orders.CoDriver
 import com.citta.driver.domain.orders.OrderLineItem
+import com.citta.driver.domain.orders.diligenciaLabel
+import com.citta.driver.domain.orders.sharedLabel
 import com.citta.driver.domain.orders.OrderStatus
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
@@ -21,9 +25,11 @@ class OrderMapperTest {
         requiereHoja: Int = 0,
         metadata: JsonElement? = null,
         items: List<OrderItemDto> = emptyList(),
+        tipoPedido: String? = null,
     ) = PedidoDto(
         id = id,
         source_ref = "CIT-$id",
+        tipo_pedido = tipoPedido,
         items = items,
         item_count = 3,
         package_weight_kg = 2.5,
@@ -43,6 +49,35 @@ class OrderMapperTest {
     )
 
     private fun json(raw: String): JsonElement = JsonParser.parseString(raw)
+
+    @Test
+    fun `keeps the order type so the app can tell errands from regular orders`() {
+        assertEquals("Diligencias_Emanuele", pedido(tipoPedido = "Diligencias_Emanuele").toActiveOrder().tipoPedido)
+        assertEquals(null, pedido().toActiveOrder().tipoPedido)
+    }
+
+    @Test
+    fun `keeps the names of the other drivers on a shared order`() {
+        val dto = pedido(assignedIds = listOf(7, 8)).copy(co_drivers = listOf(CoDriverDto(id = 8, name = "Luis Pérez")))
+
+        val order = dto.toActiveOrder()
+
+        assertEquals(listOf(CoDriver(8, "Luis Pérez")), order.coDrivers)
+        assertEquals("Pedido compartido con Luis Pérez", order.sharedLabel)
+    }
+
+    @Test
+    fun `an older backend with no co_drivers leaves the list empty`() {
+        assertEquals(emptyList<CoDriver>(), pedido().toActiveOrder().coDrivers)
+    }
+
+    @Test
+    fun `an errand carries its label and its detail text`() {
+        val order = pedido(tipoPedido = "Diligencias_Andres").toActiveOrder()
+
+        assertEquals("Diligencia para jefe Andrés", order.diligenciaLabel)
+        assertEquals("Ring twice", order.deliveryNotes)
+    }
 
     @Test
     fun `maps the core order fields the UI renders`() {

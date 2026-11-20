@@ -1,5 +1,6 @@
 package com.citta.driver.ui.orderdetail
 
+import com.citta.driver.data.api.ApiErrorMessage
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -179,7 +180,7 @@ class OrderDetailViewModel @Inject constructor(
             try {
                 block(id)
             } catch (e: Exception) {
-                actionError = "No se pudo actualizar el pedido. Intenta de nuevo."
+                actionError = ApiErrorMessage.of(e, "No se pudo actualizar el pedido. Intenta de nuevo.")
             } finally {
                 actionInFlight = false
             }

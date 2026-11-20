@@ -64,6 +64,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.diligenciaLabel
+import com.citta.driver.domain.orders.formatKg
+import com.citta.driver.domain.orders.myShareKg
+import com.citta.driver.domain.orders.sharedLabel
 import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.OrderLineItem
 import com.citta.driver.domain.orders.OrderStatus
@@ -555,12 +559,14 @@ private fun ClientCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                // An errand for a boss says who it is for instead of showing a customer name.
+                val errandLabel = order.diligenciaLabel
                 Text(
-                    text = order.customerName ?: "Cliente",
+                    text = errandLabel ?: order.customerName ?: "Cliente",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = CittaTextPrimary,
-                    maxLines = 1,
+                    maxLines = if (errandLabel != null) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -575,18 +581,48 @@ private fun ClientCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = CittaTextSecondary,
                 )
-                order.packageWeightKg?.let {
+                // A heavy order is split among several drivers: say so, and how much each carries.
+                order.sharedLabel?.let {
                     Text(
-                        text = "Peso: $it kg",
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = CittaPrimary,
+                    )
+                }
+                // An errand carries nothing to weigh or count, so weight and items are left out.
+                if (errandLabel == null) {
+                    order.packageWeightKg?.let {
+                        Text(
+                            text = order.myShareKg?.let { share -> "Peso: $it kg · tu parte: ${formatKg(share)} kg" }
+                                ?: "Peso: $it kg",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = CittaTextSecondary,
+                        )
+                    }
+                    Text(
+                        text = "Ítems: ${order.itemCount ?: order.items.size}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = CittaTextSecondary,
                     )
                 }
-                Text(
-                    text = "Ítems: ${order.itemCount ?: order.items.size}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CittaTextSecondary,
-                )
+                // The detail is mandatory when staff create an errand: it is what the driver has to do.
+                if (errandLabel != null) {
+                    order.deliveryNotes?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Detalle",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = CittaTextPrimary,
+                        )
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = CittaTextPrimary,
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.width(12.dp))
