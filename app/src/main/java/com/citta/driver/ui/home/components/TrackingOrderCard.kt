@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.sp
@@ -253,17 +254,26 @@ private fun TrackingOrderContent(
                 StatusPill(order.status)
                 val uriHandler = LocalUriHandler.current
                 val mapsUrl = order.mapsLink?.takeIf { it.isNotBlank() }
-                OrderLocationMap(
-                    mapsLink = order.mapsLink,
+                // A square sized from BOTH the width and the height the column really has. With only
+                // the height deciding, a narrow phone column left the map as a tall thin strip.
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 28.dp)
-                        .aspectRatio(1f, matchHeightConstraintsFirst = true)
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, CittaTextSecondary.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
-                    onClick = mapsUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } },
-                    resolveLink = resolveLink,
-                )
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd,
+                ) {
+                    val side = miniMapSide(maxWidth, maxHeight, MINI_MAP_END_PADDING)
+                    OrderLocationMap(
+                        mapsLink = order.mapsLink,
+                        modifier = Modifier
+                            .padding(end = MINI_MAP_END_PADDING)
+                            .size(side)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, CittaTextSecondary.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
+                        onClick = mapsUrl?.let { url -> { runCatching { uriHandler.openUri(url) } } },
+                        resolveLink = resolveLink,
+                    )
+                }
             }
         }
     }
@@ -393,3 +403,16 @@ private fun StatusTimeline(status: OrderStatus, modifier: Modifier = Modifier) {
     }
 }
 
+
+/** Space kept to the right of the mini map, in the card. */
+internal val MINI_MAP_END_PADDING = 28.dp
+
+/** The mini map is never bigger than this, however large the screen. */
+internal val MINI_MAP_MAX_SIDE = 260.dp
+
+/**
+ * Side of the square mini map: the smaller of the width left (after the end margin) and the height
+ * left, capped at [MINI_MAP_MAX_SIDE]. Never negative.
+ */
+internal fun miniMapSide(availableWidth: Dp, availableHeight: Dp, endPadding: Dp): Dp =
+    minOf(availableWidth - endPadding, availableHeight, MINI_MAP_MAX_SIDE).coerceAtLeast(0.dp)
