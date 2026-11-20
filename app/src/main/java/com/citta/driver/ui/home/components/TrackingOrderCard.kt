@@ -40,6 +40,10 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.ReadOnlyComposable
 import com.citta.driver.domain.orders.ActiveOrder
+import com.citta.driver.domain.orders.diligenciaLabel
+import com.citta.driver.domain.orders.formatKg
+import com.citta.driver.domain.orders.myShareKg
+import com.citta.driver.domain.orders.sharedLabel
 import com.citta.driver.domain.orders.GeoPoint
 import com.citta.driver.domain.orders.OrderStatus
 import com.citta.driver.ui.theme.CittaGreen
@@ -156,14 +160,16 @@ private fun TrackingOrderContent(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    order.customerName?.let {
+                    // An errand for a boss says who it is for instead of showing a customer name.
+                    val errandLabel = order.diligenciaLabel
+                    (errandLabel ?: order.customerName)?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.titleMedium,
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = CittaTextSecondary,
-                            maxLines = 1,
+                            fontWeight = if (errandLabel != null) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (errandLabel != null) CittaTextPrimary else CittaTextSecondary,
+                            maxLines = if (errandLabel != null) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -188,6 +194,18 @@ private fun TrackingOrderContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    // The detail is mandatory when staff create an errand: it is what the driver has to do.
+                    if (errandLabel != null) {
+                        order.deliveryNotes?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = CittaTextPrimary,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     // Driver payout: flat 5 USD, or 10 USD (in citta-red) when the web app
                     // has flagged the order for double pay.
                     Text(
@@ -198,16 +216,25 @@ private fun TrackingOrderContent(
                         color = if (order.pagoDoble) CittaPrimary else CittaTextSecondary,
                         maxLines = 1,
                     )
-                    if (order.isShared) {
+                    order.sharedLabel?.let { label ->
                         Text(
-                            text = "Compartido con otros repartidores",
+                            text = label,
                             color = CittaPrimaryText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        order.myShareKg?.let { kg ->
+                            Text(
+                                text = "Tu parte: ${formatKg(kg)} kg",
+                                color = CittaPrimaryText,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
 

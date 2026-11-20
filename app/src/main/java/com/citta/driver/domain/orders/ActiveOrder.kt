@@ -37,8 +37,15 @@ data class ActiveOrder(
      * "Pedidos recientes" row.
      */
     val updatedAt: String? = null,
+    /** Backend `tipo_pedido` (e.g. `Ordenes_Online`, `Diligencias_Emanuele`); null from an older backend. */
+    val tipoPedido: String? = null,
+    /** The other drivers on a shared order (name only, so the driver knows who he shares it with). */
+    val coDrivers: List<CoDriver> = emptyList(),
 ) {
     val isShared: Boolean get() = assignedDriverUserIds.size > 1
 
     fun hasDelivered(userId: Int): Boolean = userId in deliveredDriverUserIds
 }
+
+/** Another driver on a shared order. */
+data class CoDriver(val id: Int, val name: String)
